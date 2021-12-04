@@ -32,3 +32,21 @@ async def test_owner(index, owner):
     owner_signer, owner_account = owner
     execution_info = await index.owner().call()
     assert execution_info.result == (owner_account.contract_address,)
+
+@pytest.mark.asyncio
+async def test_fee_recipient(index, owner):
+    owner_signer, owner_account = owner
+    execution_info = await index.fee_recipient().call()
+    assert execution_info.result == (owner_account.contract_address,)
+
+@pytest.mark.asyncio
+async def test_mint_fee(index, owner):
+    owner_signer, owner_account = owner
+    execution_info = await index.mint_fee().call()
+    assert execution_info.result == (0,)
+
+@pytest.mark.asyncio
+async def test_burn_fee(index, owner):
+    owner_signer, owner_account = owner
+    execution_info = await index.burn_fee().call()
+    assert execution_info.result == (0,)

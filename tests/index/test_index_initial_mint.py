@@ -166,7 +166,7 @@ async def test_initial_mint_2_assets(index, asset_1, asset_2, owner, random_acc)
 
     execution_info = await index.num_assets().call()
     print("Check: Number of constituent assets is 2")
-    assert execution_info.result.res == 2
+    assert execution_info.result.num == 2
 
     execution_info = await index.assets(0).call()
     print("Check: First asset")
@@ -242,7 +242,7 @@ async def test_initial_mint_10_assets(starknet, index, owner, random_acc):
 
     execution_info = await index.num_assets().call()
     print(f"Check: Number of constituent assets is {num_assets}")
-    assert execution_info.result.res == num_assets
+    assert execution_info.result.num == num_assets
 
     for i in range(0, 10):
         execution_info = await index.assets(i).call()
@@ -271,6 +271,7 @@ async def test_initial_mint_11_assets(starknet, index, owner, random_acc):
     random_signer, random_account = random_acc
 
     assets = []
+    asset_contracts = []
     amounts = []
 
     for i in range(0, 11):
@@ -295,11 +296,12 @@ async def test_initial_mint_11_assets(starknet, index, owner, random_acc):
         assert execution_info.result.balance == uint(amount_asset)
 
         assets.append(asset)
+        asset_contracts.append(asset.contract_address)
         amounts.append(amount_asset)
 
     num_assets = len(assets)
 
-    transaction_args = [num_assets] + assets + [num_assets] + amounts
+    transaction_args = [num_assets] + asset_contracts + [num_assets] + amounts
 
     try:
         await owner_signer.send_transaction(owner_account, index.contract_address, 'initial_mint', transaction_args)
