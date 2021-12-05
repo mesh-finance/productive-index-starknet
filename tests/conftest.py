@@ -14,17 +14,17 @@ def str_to_felt(text):
     return int.from_bytes(b_text, "big")
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 def event_loop():
     return asyncio.new_event_loop()
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def starknet():
     starknet = await Starknet.empty()
     return starknet
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def owner(starknet):
     owner_signer = Signer(123456789987654321)
     owner_account = await starknet.deploy(
@@ -34,7 +34,7 @@ async def owner(starknet):
 
     return owner_signer, owner_account
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def random_acc(starknet):
     random_signer = Signer(987654320023456789)
     random_account = await starknet.deploy(
@@ -44,7 +44,7 @@ async def random_acc(starknet):
 
     return random_signer, random_account
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def user_1(starknet):
     user_1_signer = Signer(987654321123456789)
     user_1_account = await starknet.deploy(
@@ -54,7 +54,7 @@ async def user_1(starknet):
 
     return user_1_signer, user_1_account
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def fee_recipient(starknet):
     fee_recipient_signer = Signer(987654301103456789)
     fee_recipient_account = await starknet.deploy(
@@ -63,7 +63,7 @@ async def fee_recipient(starknet):
     )
     return fee_recipient_signer, fee_recipient_account
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def asset_1(starknet, random_acc):
     random_signer, random_account = random_acc
     asset_1 = await starknet.deploy(
@@ -76,7 +76,7 @@ async def asset_1(starknet, random_acc):
     )
     return asset_1
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def asset_2(starknet, random_acc):
     random_signer, random_account = random_acc
     asset_2 = await starknet.deploy(
@@ -89,15 +89,15 @@ async def asset_2(starknet, random_acc):
     )
     return asset_2
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def index_name():
     return str_to_felt(index_name_string)
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def index_symbol():
     return str_to_felt(index_symbol_string)
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def index(starknet, owner, index_name, index_symbol):
     owner_signer, owner_account = owner
     index = await starknet.deploy(
@@ -110,7 +110,7 @@ async def index(starknet, owner, index_name, index_symbol):
     )
     return index
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 async def index_with_2_assets(index, asset_1, asset_2, owner, random_acc):
     owner_signer, owner_account = owner
     random_signer, random_account = random_acc
