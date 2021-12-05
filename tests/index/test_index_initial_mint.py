@@ -169,11 +169,11 @@ async def test_initial_mint_2_assets(index, asset_1, asset_2, owner, random_acc)
     assert execution_info.result.num == 2
 
     execution_info = await index.assets(0).call()
-    print("Check: First asset")
+    print(f"Check: First asset: {execution_info.result.asset}")
     assert execution_info.result.asset == (asset_1.contract_address, uint(amount_asset_1))
 
     execution_info = await index.assets(1).call()
-    print("Check: Second asset")
+    print(f"Check: Second asset: {execution_info.result.asset}")
     assert execution_info.result.asset == (asset_2.contract_address, uint(amount_asset_2))
 
     execution_info = await index.decimals().call()

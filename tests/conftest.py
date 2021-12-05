@@ -139,3 +139,38 @@ async def index_with_2_assets(index, asset_1, asset_2, owner, random_acc):
     ])
 
     return index
+
+@pytest.fixture
+async def index_with_2_assets_user_1_minted(index_with_2_assets, user_1, random_acc):
+    user_1_signer, user_1_account = user_1
+    random_signer, random_account = random_acc
+
+    execution_info = await index_with_2_assets.decimals().call()
+    index_decimals = execution_info.result.decimals
+    amount_to_mint = 5 * 10 ** index_decimals
+
+    execution_info = await index_with_2_assets.num_assets().call()
+    num_assets =  execution_info.result.num
+
+    assets = []
+    amounts_to_transfer = []
+    amounts_initial = []
+
+    execution_info = await index_with_2_assets.totalSupply().call()
+    total_supply_initial = execution_info.result.totalSupply[0]
+
+    for i in range(0, num_assets):
+        execution_info = await index_with_2_assets.get_amount_to_mint(i, uint(amount_to_mint)).call()
+        amount_to_transfer_asset = execution_info.result.amount
+        execution_info = await index_with_2_assets.assets(i).call()
+        asset_contract_address, amount_initial_asset =  execution_info.result.asset
+        ## Mint asset to user_1 and approve to index
+        await random_signer.send_transaction(random_account, asset_contract_address, 'mint', [user_1_account.contract_address, *amount_to_transfer_asset])
+        await user_1_signer.send_transaction(user_1_account, asset_contract_address, 'approve', [index_with_2_assets.contract_address, *amount_to_transfer_asset])
+
+        amounts_to_transfer.append(amount_to_transfer_asset[0])
+        amounts_initial.append(amount_initial_asset[0])
+    
+    await user_1_signer.send_transaction(user_1_account, index_with_2_assets.contract_address, 'mint', [*uint(amount_to_mint)])
+
+    return index_with_2_assets

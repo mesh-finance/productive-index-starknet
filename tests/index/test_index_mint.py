@@ -108,6 +108,7 @@ async def test_mint(index_with_2_assets, user_1, random_acc):
         amount_to_transfer_asset = execution_info.result.amount
         execution_info = await index_with_2_assets.assets(i).call()
         asset_contract_address, amount_initial_asset =  execution_info.result.asset
+        print(f"Initial balance for asset {i} in index: {amount_initial_asset[0]}")
         print(f"Minting {amount_to_transfer_asset} of asset {i} {asset_contract_address} to user_1")
         ## Mint asset to user_1 and approve to index
         await random_signer.send_transaction(random_account, asset_contract_address, 'mint', [user_1_account.contract_address, *amount_to_transfer_asset])
@@ -115,11 +116,6 @@ async def test_mint(index_with_2_assets, user_1, random_acc):
 
         amounts_to_transfer.append(amount_to_transfer_asset[0])
         amounts_initial.append(amount_initial_asset[0])
-
-        # TODO
-        # execution_info = await asset_contract_address.balanceOf(user_1_account.contract_address).call()
-        # print(f"Check: Initial asset {i} balance for user_1 is {amount_to_transfer_asset}")
-        # assert execution_info.result.balance == uint(amount_to_transfer_asset)
     
     await user_1_signer.send_transaction(user_1_account, index_with_2_assets.contract_address, 'mint', [*uint(amount_to_mint)])
 
@@ -133,12 +129,11 @@ async def test_mint(index_with_2_assets, user_1, random_acc):
     print(f"Check: Final index balance for user_1")
     assert user_1_index_balance_final == amount_to_mint
 
-    # TODO
-    # for i in range(0, num_assets):
-    #     execution_info = await index_with_2_assets.assets(i).call()
-    #     _, amount_final_asset =  execution_info.result.asset
-    #     print(f"Check: final balance for asset {i} in index")
-    #     assert amount_final_asset[0] == amounts_initial[i] + amounts_to_transfer[i]
+    for i in range(0, num_assets):
+        execution_info = await index_with_2_assets.assets(i).call()
+        _, amount_final_asset =  execution_info.result.asset
+        print(f"Check: final balance for asset {i} in index {amount_final_asset[0]} {amounts_initial[i]} {amounts_to_transfer[i]}")
+        assert amount_final_asset[0] == amounts_initial[i] + amounts_to_transfer[i]
 
 @pytest.mark.asyncio
 async def test_mint_without_initial_mint(index, user_1):
@@ -196,11 +191,6 @@ async def test_mint_with_mint_fee_and_fee_recipient(index_with_2_assets_with_min
 
         amounts_to_transfer.append(amount_to_transfer_asset[0])
         amounts_initial.append(amount_initial_asset[0])
-
-        # TODO
-        # execution_info = await asset_contract_address.balanceOf(user_1_account.contract_address).call()
-        # print(f"Check: Initial asset {i} balance for user_1 is {amount_to_transfer_asset}")
-        # assert execution_info.result.balance == uint(amount_to_transfer_asset)
     
     await user_1_signer.send_transaction(user_1_account, index_with_2_assets_with_mint_fee_and_fee_recipient.contract_address, 'mint', [*uint(amount_to_mint)])
 
@@ -221,9 +211,8 @@ async def test_mint_with_mint_fee_and_fee_recipient(index_with_2_assets_with_min
     print(f"Check: Final index balance for fee recipient")
     assert fee_recipient_index_balance_final == expected_mint_fee
 
-    # TODO
-    # for i in range(0, num_assets):
-    #     execution_info = await index_with_2_assets_with_mint_fee_and_fee_recipient.assets(i).call()
-    #     _, amount_final_asset =  execution_info.result.asset
-    #     print(f"Check: final balance for asset {i} in index")
-    #     assert amount_final_asset[0] == amounts_initial[i] + amounts_to_transfer[i]
+    for i in range(0, num_assets):
+        execution_info = await index_with_2_assets_with_mint_fee_and_fee_recipient.assets(i).call()
+        _, amount_final_asset =  execution_info.result.asset
+        print(f"Check: final balance for asset {i} in index")
+        assert amount_final_asset[0] == amounts_initial[i] + amounts_to_transfer[i]

@@ -22,6 +22,12 @@ const MAX_BURN_FEE = 500  ## In BPS, 5%, goes to fee recipient
 
 @contract_interface
 namespace IERC20:
+    func balanceOf(account: felt) -> (balance: Uint256):
+    end
+    
+    func transfer(recipient: felt, amount: Uint256) -> (success: felt):
+    end
+
     func transferFrom(
             sender: felt, 
             recipient: felt, 
@@ -81,10 +87,6 @@ end
 
 @storage_var
 func _asset_addresses(index: felt) -> (address: felt):
-end
-
-@storage_var
-func _asset_balances(index: felt) -> (balance: Uint256):
 end
 
 @storage_var
@@ -222,7 +224,8 @@ func assets{
         range_check_ptr
     }(index: felt) -> (asset: Asset):
     let (asset_address) = _asset_addresses.read(index)
-    let (asset_balance: Uint256) = _asset_balances.read(index)
+    let (self_address) = get_contract_address()
+    let (asset_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
     let asset = Asset(address = asset_address, balance = asset_balance)
     return (asset)
 end
@@ -405,8 +408,9 @@ func initial_mint{
     
     let (local owner) = _owner.read()
     _initiate_assets(0, assets_len, assets)
-    _transfer_assets_from_sender(owner, 0, assets_len, amounts)
-    _update_asset_balances(0, assets_len, amounts)
+    let (amounts_in_uint256: Uint256*) = alloc()
+    let (amounts_in_uint256_end: Uint256*) = _convert_felt_array_to_uint256_array(0, assets_len, amounts, amounts_in_uint256)
+    _transfer_assets_from_sender(owner, 0, assets_len, amounts_in_uint256)
 
     let (local decimals) = _decimals.read()
     let (local unit) = pow(10, decimals)
@@ -434,7 +438,6 @@ func mint{
 
     let (local amounts_to_transfer: Uint256*) = _get_amounts_to_mint(amount_out)
     _transfer_assets_from_sender(msg_sender, 0, assets_len, amounts_to_transfer)
-    _update_asset_balances(0, assets_len, amounts_to_transfer)
 
     let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(amount_out, Uint256(mint_fee, 0))
     let (is_equal_to_zero) =  uint256_eq(mul_high, Uint256(0, 0))
@@ -452,9 +455,62 @@ func burn{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(user: felt, amount: Uint256):
-    _only_owner()
-    _burn(user, amount)
+    }(amount: Uint256):
+    alloc_locals
+    uint256_check(amount)
+    let (local msg_sender) = get_caller_address()
+    let (local fee_recipient) = _fee_recipient.read()
+    let (local owner) = _owner.read()
+    let (local burn_fee) = _burn_fee.read()
+    let (local _total_supply: Uint256) = total_supply.read()
+    let (is_greater_than_zero) = uint256_lt(Uint256(0, 0), _total_supply)
+    assert is_greater_than_zero = 1
+
+    let (local assets_len) = _num_assets.read()
+
+    let (min_burn_amount) = pow(10, 6)
+    let (enough_burn_amount) = uint256_le(Uint256(min_burn_amount, 0), amount)
+    assert_not_zero(enough_burn_amount)
+
+    local amount_to_burn: Uint256
+    local charge_fee
+    
+    if burn_fee == 0:
+        assert charge_fee = 0
+    else:
+        if msg_sender == fee_recipient:
+            assert charge_fee = 0
+        else:
+            if msg_sender == owner:
+                assert charge_fee = 0
+            else:
+                assert charge_fee = 1
+            end
+        end
+    end
+
+    if charge_fee == 1:
+        let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(amount, Uint256(burn_fee, 0))
+        let (is_equal_to_zero) =  uint256_eq(mul_high, Uint256(0, 0))
+        assert is_equal_to_zero = 1
+        let (fee: Uint256, _) = uint256_unsigned_div_rem(mul_low, Uint256(MAX_BPS, 0))
+        let (local amount_to_burn_local: Uint256) = uint256_sub(amount, fee)
+        assert amount_to_burn = amount_to_burn_local
+        _transfer(msg_sender, fee_recipient, fee)
+        tempvar syscall_ptr = syscall_ptr
+        tempvar pedersen_ptr = pedersen_ptr
+        tempvar range_check_ptr = range_check_ptr
+    else:
+        assert amount_to_burn = amount
+        tempvar syscall_ptr = syscall_ptr
+        tempvar pedersen_ptr = pedersen_ptr
+        tempvar range_check_ptr = range_check_ptr
+    end
+    
+    _burn(msg_sender, amount_to_burn)
+
+    _transfer_assets_to_sender(msg_sender, 0, assets_len, amount_to_burn, _total_supply)
+    
     return ()
 end
 
@@ -618,37 +674,33 @@ func _initiate_assets{
     return ()
 end
 
-func _update_asset_balances{
+func _convert_felt_array_to_uint256_array{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(current_index: felt, num_assets: felt, amounts: felt*):
+    }(current_index: felt, num_assets: felt, amounts: felt*, amounts_in_uint256: Uint256*) -> (amounts_in_uint256: Uint256*):
     alloc_locals
     if current_index == num_assets:
-        return ()
+        return (amounts_in_uint256)
     end
-    uint256_check(Uint256([amounts], 0))
-    let (current_balance: Uint256) = _asset_balances.read(current_index)
-    let (final_balance: Uint256, _) = uint256_add(current_balance, Uint256([amounts], 0))
-    _asset_balances.write(current_index, final_balance)
-    _update_asset_balances(current_index + 1, num_assets, amounts + 1)
-    return ()
+    assert [amounts_in_uint256] = Uint256([amounts], 0)
+    
+    return _convert_felt_array_to_uint256_array(current_index + 1, num_assets, amounts + 1, amounts_in_uint256 + Uint256.SIZE)
 end
 
 func _transfer_assets_from_sender{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(sender: felt, current_index: felt, num_assets: felt, amounts: felt*):
+    }(sender: felt, current_index: felt, num_assets: felt, amounts: Uint256*):
     alloc_locals
     if current_index == num_assets:
         return ()
     end
-    uint256_check(Uint256([amounts], 0))
     let (self_address) = get_contract_address()
     let (asset_address) = _asset_addresses.read(current_index)
-    IERC20.transferFrom(contract_address=asset_address, sender=sender, recipient=self_address, amount=Uint256([amounts], 0))
-    _transfer_assets_from_sender(sender, current_index + 1, num_assets, amounts + 1)
+    IERC20.transferFrom(contract_address=asset_address, sender=sender, recipient=self_address, amount=[amounts])
+    _transfer_assets_from_sender(sender, current_index + 1, num_assets, amounts + Uint256.SIZE)
     return ()
 end
 
@@ -676,8 +728,10 @@ func _build_amounts_to_mint{
         if current_index == num_assets:
             return (amounts)
         end
-
-        let (asset_balance: Uint256) = _asset_balances.read(current_index)
+        
+        let (asset_address) = _asset_addresses.read(current_index)
+        let (self_address) = get_contract_address()
+        let (asset_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
 
         let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(asset_balance, amount_out)
 
@@ -691,3 +745,24 @@ func _build_amounts_to_mint{
         return _build_amounts_to_mint(amount_out, total_supply, num_assets, current_index + 1, amounts + Uint256.SIZE)
     end
         
+    func _transfer_assets_to_sender{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(sender: felt, current_index: felt, num_assets: felt, amount_to_burn: Uint256, total_supply: Uint256):
+    alloc_locals
+    if current_index == num_assets:
+        return ()
+    end
+    let (asset_address) = _asset_addresses.read(current_index)
+    let (self_address) = get_contract_address()
+    let (current_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
+    let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(current_balance, amount_to_burn)
+    let (is_equal_to_zero) =  uint256_eq(mul_high, Uint256(0, 0))
+    assert is_equal_to_zero = 1
+    let (local amount_to_transfer: Uint256, _) = uint256_unsigned_div_rem(mul_low, total_supply)
+    let (final_balance: Uint256) = uint256_sub(current_balance, amount_to_transfer)
+    IERC20.transfer(contract_address=asset_address, recipient=sender, amount=amount_to_transfer)
+    _transfer_assets_to_sender(sender, current_index + 1, num_assets, amount_to_burn, total_supply)
+    return ()
+end
