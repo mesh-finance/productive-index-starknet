@@ -256,7 +256,7 @@ func burn_fee{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }() -> (fee: felt):
-    let (fee) = _mint_fee.read()
+    let (fee) = _burn_fee.read()
     return (fee)
 end
 
