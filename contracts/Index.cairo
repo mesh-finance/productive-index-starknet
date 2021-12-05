@@ -550,6 +550,25 @@ func update_burn_fee{
     return ()
 end
 
+@external
+func sweep{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(token: felt, recipient: felt):
+    alloc_locals
+    _only_owner()
+    assert_not_equal(token, 0)
+    assert_not_equal(recipient, 0)
+    let (local num_assets) = _num_assets.read()
+    let (is_asset) = _is_asset(token, 0, num_assets)
+    assert_not_equal(is_asset, 1)
+    let (self_address) = get_contract_address()
+    let (token_balance: Uint256) = IERC20.balanceOf(contract_address=token, account=self_address)
+    IERC20.transfer(contract_address=token, recipient=recipient, amount=token_balance)
+    return ()
+end
+
 
 #
 # Internals ERC20
@@ -659,6 +678,24 @@ end
 #
 # Internals Index
 #
+
+func _is_asset{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(address: felt, current_index: felt, num_assets: felt) -> (res: felt):
+    alloc_locals
+    if current_index == num_assets:
+        return (0)
+    end
+    let (asset_address) = _asset_addresses.read(current_index)
+    if asset_address == address:
+        return (1)
+    else:
+        return _is_asset(address, current_index + 1, num_assets)
+    end
+end
+
 
 func _initiate_assets{
         syscall_ptr : felt*, 
