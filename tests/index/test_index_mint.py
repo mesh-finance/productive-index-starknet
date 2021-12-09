@@ -1,7 +1,6 @@
 import pytest
 import asyncio
-from starkware.starkware_utils.error_handling import StarkException
-from starkware.starknet.definitions.error_codes import StarknetErrorCode
+from utils.revert import assert_revert
 
 def uint(a):
     return(a, 0)
@@ -26,19 +25,15 @@ async def test_initial_mint_again(index_with_2_assets, asset_1, asset_2, owner, 
     ## Mint asset_2 to owner and approve for index
     await random_signer.send_transaction(random_account, asset_2.contract_address, 'mint', [owner_account.contract_address, *uint(amount_asset_2)])
     await owner_signer.send_transaction(owner_account, asset_2.contract_address, 'approve', [index_with_2_assets.contract_address, *uint(amount_asset_2)])
-    try:
-        await owner_signer.send_transaction(owner_account, index_with_2_assets.contract_address, 'initial_mint', [
-            2,
-            asset_1.contract_address,
-            asset_2.contract_address,
-            2,
-            amount_asset_1,
-            amount_asset_2
-        ])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    
+    await assert_revert(owner_signer.send_transaction(owner_account, index_with_2_assets.contract_address, 'initial_mint', [
+        2,
+        asset_1.contract_address,
+        asset_2.contract_address,
+        2,
+        amount_asset_1,
+        amount_asset_2
+    ]))
 
 @pytest.mark.asyncio
 async def test_mint_without_balance(index_with_2_assets, asset_1, asset_2, owner):
@@ -48,12 +43,7 @@ async def test_mint_without_balance(index_with_2_assets, asset_1, asset_2, owner
     index_decimals = execution_info.result.decimals
     amount_to_mint = 10 ** index_decimals
     
-    try:
-        await owner_signer.send_transaction(owner_account, index_with_2_assets.contract_address, 'mint', [*uint(amount_to_mint)])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(owner_signer.send_transaction(owner_account, index_with_2_assets.contract_address, 'mint', [*uint(amount_to_mint)]))
 
 @pytest.mark.asyncio
 async def test_mint_without_approval(index_with_2_assets, user_1, random_acc):
@@ -76,16 +66,11 @@ async def test_mint_without_approval(index_with_2_assets, user_1, random_acc):
         ## Mint asset to user_1
         await random_signer.send_transaction(random_account, asset_contract_address, 'mint', [user_1_account.contract_address, *amount_to_transfer_asset])
     
-    try:
-        await user_1_signer.send_transaction(user_1_account, index_with_2_assets.contract_address, 'mint', [*uint(amount_to_mint)])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(user_1_signer.send_transaction(user_1_account, index_with_2_assets.contract_address, 'mint', [*uint(amount_to_mint)]))
 
 
 @pytest.mark.asyncio
-async def test_mint(index_with_2_assets, user_1, random_acc):
+async def test_mint(starknet, index_with_2_assets, user_1, random_acc):
     user_1_signer, user_1_account = user_1
     random_signer, random_account = random_acc
 
@@ -96,7 +81,7 @@ async def test_mint(index_with_2_assets, user_1, random_acc):
     execution_info = await index_with_2_assets.num_assets().call()
     num_assets =  execution_info.result.num
 
-    assets = []
+    asset_contract_addresses = []
     amounts_to_transfer = []
     amounts_initial = []
 
@@ -114,6 +99,7 @@ async def test_mint(index_with_2_assets, user_1, random_acc):
         await random_signer.send_transaction(random_account, asset_contract_address, 'mint', [user_1_account.contract_address, *amount_to_transfer_asset])
         await user_1_signer.send_transaction(user_1_account, asset_contract_address, 'approve', [index_with_2_assets.contract_address, *amount_to_transfer_asset])
 
+        asset_contract_addresses.append(asset_contract_address)
         amounts_to_transfer.append(amount_to_transfer_asset[0])
         amounts_initial.append(amount_initial_asset[0])
     
@@ -134,6 +120,10 @@ async def test_mint(index_with_2_assets, user_1, random_acc):
         _, amount_final_asset =  execution_info.result.asset
         print(f"Check: final balance for asset {i} in index {amount_final_asset[0]} {amounts_initial[i]} {amounts_to_transfer[i]}")
         assert amount_final_asset[0] == amounts_initial[i] + amounts_to_transfer[i]
+        raw_execution_info = await starknet.state.invoke_raw(asset_contract_addresses[i], 'balanceOf', [user_1_account.contract_address], random_account.contract_address)
+        user_1_asset_balance_final = raw_execution_info.retdata[0]
+        print(f"Check: final balance of user_1 for asset {i} is 0")
+        assert user_1_asset_balance_final == 0
 
 @pytest.mark.asyncio
 async def test_mint_without_initial_mint(index, user_1):
@@ -143,12 +133,7 @@ async def test_mint_without_initial_mint(index, user_1):
     index_decimals = execution_info.result.decimals
     amount_to_mint = 5 * 10 ** index_decimals
     
-    try:
-        await user_1_signer.send_transaction(user_1_account, index.contract_address, 'mint', [*uint(amount_to_mint)])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(user_1_signer.send_transaction(user_1_account, index.contract_address, 'mint', [*uint(amount_to_mint)]))
 
 @pytest.fixture()
 async def index_with_2_assets_with_mint_fee_and_fee_recipient(index_with_2_assets, owner, fee_recipient):
@@ -160,7 +145,7 @@ async def index_with_2_assets_with_mint_fee_and_fee_recipient(index_with_2_asset
     return index_with_2_assets
 
 @pytest.mark.asyncio
-async def test_mint_with_mint_fee_and_fee_recipient(index_with_2_assets_with_mint_fee_and_fee_recipient, user_1, random_acc, fee_recipient):
+async def test_mint_with_mint_fee_and_fee_recipient(starknet, index_with_2_assets_with_mint_fee_and_fee_recipient, user_1, random_acc, fee_recipient):
     user_1_signer, user_1_account = user_1
     random_signer, random_account = random_acc
     fee_recipient_signer, fee_recipient_account = fee_recipient
@@ -172,7 +157,7 @@ async def test_mint_with_mint_fee_and_fee_recipient(index_with_2_assets_with_min
     execution_info = await index_with_2_assets_with_mint_fee_and_fee_recipient.num_assets().call()
     num_assets =  execution_info.result.num
 
-    assets = []
+    asset_contract_addresses = []
     amounts_to_transfer = []
     amounts_initial = []
 
@@ -189,6 +174,7 @@ async def test_mint_with_mint_fee_and_fee_recipient(index_with_2_assets_with_min
         await random_signer.send_transaction(random_account, asset_contract_address, 'mint', [user_1_account.contract_address, *amount_to_transfer_asset])
         await user_1_signer.send_transaction(user_1_account, asset_contract_address, 'approve', [index_with_2_assets_with_mint_fee_and_fee_recipient.contract_address, *amount_to_transfer_asset])
 
+        asset_contract_addresses.append(asset_contract_address)
         amounts_to_transfer.append(amount_to_transfer_asset[0])
         amounts_initial.append(amount_initial_asset[0])
     
@@ -216,3 +202,7 @@ async def test_mint_with_mint_fee_and_fee_recipient(index_with_2_assets_with_min
         _, amount_final_asset =  execution_info.result.asset
         print(f"Check: final balance for asset {i} in index")
         assert amount_final_asset[0] == amounts_initial[i] + amounts_to_transfer[i]
+        raw_execution_info = await starknet.state.invoke_raw(asset_contract_addresses[i], 'balanceOf', [user_1_account.contract_address], random_account.contract_address)
+        user_1_asset_balance_final = raw_execution_info.retdata[0]
+        print(f"Check: final balance of user_1 for asset {i} is 0")
+        assert user_1_asset_balance_final == 0

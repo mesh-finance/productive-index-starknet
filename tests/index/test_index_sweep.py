@@ -1,7 +1,6 @@
 import pytest
 import asyncio
-from starkware.starkware_utils.error_handling import StarkException
-from starkware.starknet.definitions.error_codes import StarknetErrorCode
+from utils.revert import assert_revert
 
 def uint(a):
     return(a, 0)
@@ -21,47 +20,27 @@ async def index_with_2_assets_and_sweepable_token(index_with_2_assets, sweepable
 async def test_sweep_non_owner(index_with_2_assets_and_sweepable_token, sweepable_token, random_acc):
     random_signer, random_account = random_acc
 
-    try:
-        await random_signer.send_transaction(random_account, index_with_2_assets_and_sweepable_token.contract_address, 'sweep', [sweepable_token.contract_address, random_account.contract_address])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(random_signer.send_transaction(random_account, index_with_2_assets_and_sweepable_token.contract_address, 'sweep', [sweepable_token.contract_address, random_account.contract_address]))
 
 @pytest.mark.asyncio
 async def test_sweep_to_zero_address(index_with_2_assets_and_sweepable_token, sweepable_token, owner):
     owner_signer, owner_account = owner
 
-    try:
-        await owner_signer.send_transaction(owner_account, index_with_2_assets_and_sweepable_token.contract_address, 'sweep', [sweepable_token.contract_address, 0])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(owner_signer.send_transaction(owner_account, index_with_2_assets_and_sweepable_token.contract_address, 'sweep', [sweepable_token.contract_address, 0]))
 
 @pytest.mark.asyncio
 async def test_sweep_zero_token(index_with_2_assets_and_sweepable_token, owner, random_acc):
     owner_signer, owner_account = owner
     random_signer, random_account = random_acc
 
-    try:
-        await owner_signer.send_transaction(owner_account, index_with_2_assets_and_sweepable_token.contract_address, 'sweep', [0, random_account.contract_address])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(owner_signer.send_transaction(owner_account, index_with_2_assets_and_sweepable_token.contract_address, 'sweep', [0, random_account.contract_address]))
 
 @pytest.mark.asyncio
 async def test_sweep_constituent_asset(index_with_2_assets_and_sweepable_token, asset_1, owner, random_acc):
     owner_signer, owner_account = owner
     random_signer, random_account = random_acc
 
-    try:
-        await owner_signer.send_transaction(owner_account, index_with_2_assets_and_sweepable_token.contract_address, 'sweep', [asset_1.contract_address, random_account.contract_address])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(owner_signer.send_transaction(owner_account, index_with_2_assets_and_sweepable_token.contract_address, 'sweep', [asset_1.contract_address, random_account.contract_address]))
 
 @pytest.mark.asyncio
 async def test_sweep(index_with_2_assets_and_sweepable_token, sweepable_token, owner, random_acc):

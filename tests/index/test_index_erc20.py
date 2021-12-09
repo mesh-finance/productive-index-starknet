@@ -1,8 +1,7 @@
 import pytest
 import asyncio
 from starkware.starknet.testing.starknet import Starknet
-from starkware.starkware_utils.error_handling import StarkException
-from starkware.starknet.definitions.error_codes import StarknetErrorCode
+from utils.revert import assert_revert
 
 def uint(a):
     return(a, 0)
@@ -68,15 +67,10 @@ async def test_insufficient_sender_funds(index, owner):
     execution_info = await index.balanceOf(owner_account.contract_address).call()
     balance = execution_info.result.balance
 
-    try:
-        await owner_signer.send_transaction(owner_account, index.contract_address, 'transfer', [
-            recipient,
-            *uint(balance[0] + 1)
-        ])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(owner_signer.send_transaction(owner_account, index.contract_address, 'transfer', [
+        recipient,
+        *uint(balance[0] + 1)
+    ]))
 
 
 @pytest.mark.asyncio
@@ -224,16 +218,11 @@ async def test_decreaseAllowance_underflow(index, owner):
     execution_info = await index.allowance(owner_account.contract_address, spender).call()
     assert execution_info.result.remaining == init_amount
 
-    try:
-        # increasing the decreased allowance amount by more than the user's allowance
-        await owner_signer.send_transaction(owner_account, index.contract_address, 'decreaseAllowance', [
-            spender,
-            *uint(init_amount[0] + 1)
-        ])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    # increasing the decreased allowance amount by more than the user's allowance
+    await assert_revert(owner_signer.send_transaction(owner_account, index.contract_address, 'decreaseAllowance', [
+        spender,
+        *uint(init_amount[0] + 1)
+    ]))
 
 
 @pytest.mark.asyncio
@@ -249,17 +238,12 @@ async def test_transfer_funds_greater_than_allowance(index, owner, starknet):
     allowance = uint(111)
     await owner_signer.send_transaction(owner_account, index.contract_address, 'approve', [spender.contract_address, *allowance])
 
-    try:
-        # increasing the transfer amount above allowance
-        await owner_signer.send_transaction(spender, index.contract_address, 'transferFrom', [
-            owner_account.contract_address,
-            recipient,
-            *uint(allowance[0] + 1)
-        ])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    # increasing the transfer amount above allowance
+    await assert_revert(owner_signer.send_transaction(spender, index.contract_address, 'transferFrom', [
+        owner_account.contract_address,
+        recipient,
+        *uint(allowance[0] + 1)
+    ]))
 
 
 @pytest.mark.asyncio
@@ -271,14 +255,9 @@ async def test_increaseAllowance_overflow(index, owner):
     # overflow_amount adds (1, 0) to (2**128 - 1, 2**128 - 1)
     overflow_amount = uint(1)
     await owner_signer.send_transaction(owner_account, index.contract_address, 'approve', [spender, *amount])
-
-    try:
-        # overflow check will revert the transaction
-        await owner_signer.send_transaction(owner_account, index.contract_address, 'increaseAllowance', [spender, *overflow_amount])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+        
+    # overflow check will revert the transaction
+    await assert_revert(owner_signer.send_transaction(owner_account, index.contract_address, 'increaseAllowance', [spender, *overflow_amount]))
 
 
 @pytest.mark.asyncio
@@ -287,12 +266,7 @@ async def test_transfer_to_zero_address(index, owner):
     recipient = 0
     amount = uint(1)
 
-    try:
-        await owner_signer.send_transaction(owner_account, index.contract_address, 'transfer', [recipient, *amount])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(owner_signer.send_transaction(owner_account, index.contract_address, 'transfer', [recipient, *amount]))
 
 
 @pytest.mark.asyncio
@@ -303,12 +277,7 @@ async def test_transferFrom_zero_address(index, owner):
 
     # Without using an owner_account abstraction, the caller address
     # (get_caller_address) is zero
-    try:
-        await index.transfer(recipient, amount).invoke()
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(index.transfer(recipient, amount).invoke())
 
 
 @pytest.mark.asyncio
@@ -325,18 +294,13 @@ async def test_transferFrom_func_to_zero_address(index, owner, starknet):
 
     await owner_signer.send_transaction(owner_account, index.contract_address, 'approve', [spender.contract_address, *amount])
 
-    try:
-        await owner_signer.send_transaction(
-            spender, index.contract_address, 'transferFrom',
-            [
-                owner_account.contract_address,
-                zero_address,
-                *amount
-            ])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(owner_signer.send_transaction(
+        spender, index.contract_address, 'transferFrom',
+        [
+            owner_account.contract_address,
+            zero_address,
+            *amount
+        ]))
 
 
 @pytest.mark.asyncio
@@ -352,18 +316,13 @@ async def test_transferFrom_func_from_zero_address(index, owner, starknet):
     recipient = 123
     amount = uint(1)
 
-    try:
-        await owner_signer.send_transaction(
-            spender, index.contract_address, 'transferFrom',
-            [
-                zero_address,
-                recipient,
-                *amount
-            ])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(owner_signer.send_transaction(
+        spender, index.contract_address, 'transferFrom',
+        [
+            zero_address,
+            recipient,
+            *amount
+        ]))
 
 
 @pytest.mark.asyncio
@@ -372,12 +331,7 @@ async def test_approve_zero_address_spender(index, owner):
     spender = 0
     amount = uint(1)
 
-    try:
-        await owner_signer.send_transaction(owner_account, index.contract_address, 'approve', [spender, *amount])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(owner_signer.send_transaction(owner_account, index.contract_address, 'approve', [spender, *amount]))
 
 
 @pytest.mark.asyncio
@@ -388,9 +342,4 @@ async def test_approve_zero_address_caller(index, owner):
 
     # Without using an owner_account abstraction, the caller address
     # (get_caller_address) is zero
-    try:
-        await index.approve(spender, amount).invoke()
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(index.approve(spender, amount).invoke())

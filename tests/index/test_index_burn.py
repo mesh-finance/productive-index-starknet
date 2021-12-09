@@ -1,7 +1,6 @@
 import pytest
 import asyncio
-from starkware.starkware_utils.error_handling import StarkException
-from starkware.starknet.definitions.error_codes import StarknetErrorCode
+from utils.revert import assert_revert
 
 def uint(a):
     return(a, 0)
@@ -16,12 +15,7 @@ async def test_burn_without_balance(index_with_2_assets_user_1_minted, random_ac
     index_decimals = execution_info.result.decimals
     amount_to_burn = 10 ** index_decimals
     
-    try:
-        await random_signer.send_transaction(random_account, index_with_2_assets_user_1_minted.contract_address, 'burn', [*uint(amount_to_burn)])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(random_signer.send_transaction(random_account, index_with_2_assets_user_1_minted.contract_address, 'burn', [*uint(amount_to_burn)]))
 
 @pytest.mark.asyncio
 async def test_burn_without_initial_mint(index, user_1):
@@ -31,24 +25,14 @@ async def test_burn_without_initial_mint(index, user_1):
     index_decimals = execution_info.result.decimals
     amount_to_burn = 10 ** index_decimals
     
-    try:
-        await user_1_signer.send_transaction(user_1_account, index.contract_address, 'burn', [*uint(amount_to_burn)])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(user_1_signer.send_transaction(user_1_account, index.contract_address, 'burn', [*uint(amount_to_burn)]))
 
 @pytest.mark.asyncio
 async def test_burn_less_than_minimum(index_with_2_assets_user_1_minted, user_1):
     user_1_signer, user_1_account = user_1
     amount_to_burn = 10 ** 5
     
-    try:
-        await user_1_signer.send_transaction(user_1_account, index_with_2_assets_user_1_minted.contract_address, 'burn', [*uint(amount_to_burn)])
-        assert False
-    except StarkException as err:
-        _, error = err.args
-        assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
+    await assert_revert(user_1_signer.send_transaction(user_1_account, index_with_2_assets_user_1_minted.contract_address, 'burn', [*uint(amount_to_burn)]))
 
 @pytest.mark.asyncio
 async def test_burn(index_with_2_assets_user_1_minted, user_1):
