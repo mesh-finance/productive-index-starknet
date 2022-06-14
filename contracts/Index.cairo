@@ -113,7 +113,11 @@ func constructor{
     }(
         name: felt,
         symbol: felt,
-        initial_owner: felt
+        initial_owner: felt,
+	assets_len: felt,
+	assets: felt*,
+	amounts_len: felt, 
+	amounts: felt*
     ):
     # get_caller_address() returns '0' in the constructor;
     # therefore, recipient parameter is included
@@ -122,6 +126,7 @@ func constructor{
     _decimals.write(18)
     _owner.write(initial_owner)
     _fee_recipient.write(initial_owner)
+    _initial_mint(assets_len, assets, amounts_len, amounts)
     return ()
 end
 
@@ -391,35 +396,6 @@ end
 #
 
 @external
-func initial_mint{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(assets_len: felt, assets: felt*, amounts_len: felt, amounts: felt*):
-    alloc_locals
-    _only_owner()
-    let (local _total_supply: Uint256) = total_supply.read()
-    let (is_equal_to_zero) =  uint256_eq(_total_supply, Uint256(0, 0))
-    assert is_equal_to_zero = 1
-    assert assets_len = amounts_len
-    assert_in_range(assets_len, 2, MAX_ASSETS + 1)    ## Max 10 assets
-
-    _num_assets.write(assets_len)
-    
-    let (local owner) = _owner.read()
-    _initiate_assets(0, assets_len, assets)
-    let (amounts_in_uint256: Uint256*) = alloc()
-    let (amounts_in_uint256_end: Uint256*) = _convert_felt_array_to_uint256_array(0, assets_len, amounts, amounts_in_uint256)
-    _transfer_assets_from_sender(owner, 0, assets_len, amounts_in_uint256)
-
-    let (local decimals) = _decimals.read()
-    let (local unit) = pow(10, decimals)
-    uint256_check(Uint256(1 * unit, 0))
-    _mint(owner, Uint256(1 * unit, 0))
-    return ()
-end
-
-@external
 func mint{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*,
@@ -473,23 +449,8 @@ func burn{
     assert_not_zero(enough_burn_amount)
 
     local amount_to_burn: Uint256
-    local charge_fee
     
-    if burn_fee == 0:
-        assert charge_fee = 0
-    else:
-        if msg_sender == fee_recipient:
-            assert charge_fee = 0
-        else:
-            if msg_sender == owner:
-                assert charge_fee = 0
-            else:
-                assert charge_fee = 1
-            end
-        end
-    end
-
-    if charge_fee == 1:
+    if burn_fee == 1:
         let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(amount, Uint256(burn_fee, 0))
         let (is_equal_to_zero) =  uint256_eq(mul_high, Uint256(0, 0))
         assert is_equal_to_zero = 1
@@ -573,6 +534,30 @@ end
 #
 # Internals ERC20
 #
+
+func _initial_mint{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(assets_len: felt, assets: felt*, amounts_len: felt, amounts: felt*):
+    alloc_locals
+    assert assets_len = amounts_len
+    assert_in_range(assets_len, 2, MAX_ASSETS + 1)    ## Max 10 assets
+
+    _num_assets.write(assets_len)
+
+    let (local owner) = _owner.read()
+    _initiate_assets(0, assets_len, assets)
+    let (amounts_in_uint256: Uint256*) = alloc()
+    let (amounts_in_uint256_end: Uint256*) = _convert_felt_array_to_uint256_array(0, assets_len, amounts, amounts_in_uint256)
+    _transfer_assets_from_sender(owner, 0, assets_len, amounts_in_uint256)
+
+    let (local decimals) = _decimals.read()
+    let (local unit) = pow(10, decimals)
+    uint256_check(Uint256(1 * unit, 0))
+    _mint(owner, Uint256(1 * unit, 0))
+    return ()
+end
 
 func _mint{
         syscall_ptr : felt*, 

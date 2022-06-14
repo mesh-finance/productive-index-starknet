@@ -110,18 +110,18 @@ async def index_name():
 async def index_symbol():
     return str_to_felt(index_symbol_string)
 
-@pytest.fixture
-async def index(starknet, owner, index_name, index_symbol):
-    owner_signer, owner_account = owner
-    index = await starknet.deploy(
-        "contracts/Index.cairo",
-        constructor_calldata=[
-            index_name,  # name
-            index_symbol,  # symbol
-            owner_account.contract_address   # initial_owner
-        ]
-    )
-    return index
+#@pytest.fixture
+#async def index(starknet, owner, index_name, index_symbol):
+#    owner_signer, owner_account = owner
+#    index = await starknet.deploy(
+#        "contracts/Index.cairo",
+#        constructor_calldata=[
+#            index_name,  # name
+#            index_symbol,  # symbol
+#            owner_account.contract_address   # initial_owneri
+#        ]
+#    )
+#    return index
 
 @pytest.fixture
 async def index_with_2_assets(index, asset_1, asset_2, owner, random_acc):
