@@ -15,6 +15,7 @@ const MAX_ASSETS = 10
 const MAX_BPS = 10000     ## 100% in basis points
 const MAX_MINT_FEE = 500  ## In BPS, 5%, goes to fee recipient
 const MAX_BURN_FEE = 500  ## In BPS, 5%, goes to fee recipient
+const MIN_ASSET_AMOUNT = 1000000 # 1e6 min token amount to prevent rounding errors
 
 #
 # Interface ERC20
@@ -468,8 +469,7 @@ func burn{
 
     let (local assets_len) = _num_assets.read()
 
-    let (min_burn_amount) = pow(10, 6)
-    let (enough_burn_amount) = uint256_le(Uint256(min_burn_amount, 0), amount)
+    let (enough_burn_amount) = uint256_le(Uint256(MIN_ASSET_AMOUNT, 0), amount)
     assert_not_zero(enough_burn_amount)
 
     local amount_to_burn: Uint256
