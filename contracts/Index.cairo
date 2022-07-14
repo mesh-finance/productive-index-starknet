@@ -10,6 +10,14 @@ from starkware.cairo.common.uint256 import (
 )
 from starkware.cairo.common.alloc import alloc
 
+#Index storage
+from lib.index_storage import (
+    INDEX_num_assets,INDEX_asset_addresses,INDEX_fee_recipient,INDEX_mint_fee,INDEX_burn_fee,Asset
+)
+
+#Index Modules
+from contracts.modules.lending_module import Lending
+
 
 const MAX_ASSETS = 10
 const MAX_BPS = 10000     ## 100% in basis points
@@ -72,34 +80,6 @@ end
 func _owner() -> (address: felt):
 end
 
-#
-# Storage Index
-#
-
-struct Asset:
-    member address: felt
-    member balance: Uint256
-end
-
-@storage_var
-func _num_assets() -> (num: felt):
-end
-
-@storage_var
-func _asset_addresses(index: felt) -> (address: felt):
-end
-
-@storage_var
-func _fee_recipient() -> (address: felt):
-end
-
-@storage_var
-func _mint_fee() -> (fee: felt):
-end
-
-@storage_var
-func _burn_fee() -> (fee: felt):
-end
 
 #
 # Constructor
@@ -114,10 +94,10 @@ func constructor{
         name: felt,
         symbol: felt,
         initial_owner: felt,
-	assets_len: felt,
-	assets: felt*,
-	amounts_len: felt, 
-	amounts: felt*
+        assets_len: felt,
+        assets: felt*,
+        amounts_len: felt, 
+        amounts: felt*
     ):
     # get_caller_address() returns '0' in the constructor;
     # therefore, recipient parameter is included
@@ -125,7 +105,7 @@ func constructor{
     _symbol.write(symbol)
     _decimals.write(18)
     _owner.write(initial_owner)
-    _fee_recipient.write(initial_owner)
+    INDEX_fee_recipient.write(initial_owner)
     _initial_mint(assets_len, assets, amounts_len, amounts)
     return ()
 end
@@ -218,7 +198,7 @@ func num_assets{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }() -> (num: felt):
-    let (num) = _num_assets.read()
+    let (num) = INDEX_num_assets.read()
     return (num)
 end
 
@@ -228,7 +208,7 @@ func assets{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }(index: felt) -> (asset: Asset):
-    let (asset_address) = _asset_addresses.read(index)
+    let (asset_address) = INDEX_asset_addresses.read(index)
     let (self_address) = get_contract_address()
     let (asset_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
     let asset = Asset(address = asset_address, balance = asset_balance)
@@ -241,7 +221,7 @@ func fee_recipient{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }() -> (address: felt):
-    let (address) = _fee_recipient.read()
+    let (address) = INDEX_fee_recipient.read()
     return (address)
 end
 
@@ -251,7 +231,7 @@ func mint_fee{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }() -> (fee: felt):
-    let (fee) = _mint_fee.read()
+    let (fee) = INDEX_mint_fee.read()
     return (fee)
 end
 
@@ -261,7 +241,7 @@ func burn_fee{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }() -> (fee: felt):
-    let (fee) = _burn_fee.read()
+    let (fee) = INDEX_burn_fee.read()
     return (fee)
 end
 
@@ -404,13 +384,13 @@ func mint{
     alloc_locals
     uint256_check(amount_out)
     let (local msg_sender) = get_caller_address()
-    let (local fee_recipient) = _fee_recipient.read()
-    let (local mint_fee) = _mint_fee.read()
+    let (local fee_recipient) = INDEX_fee_recipient.read()
+    let (local mint_fee) = INDEX_mint_fee.read()
     let (local _total_supply: Uint256) = total_supply.read()
     let (is_greater_than_zero) = uint256_lt(Uint256(0, 0), _total_supply)
     assert is_greater_than_zero = 1
 
-    let (local assets_len) = _num_assets.read()
+    let (local assets_len) = INDEX_num_assets.read()
 
     let (local amounts_to_transfer: Uint256*) = _get_amounts_to_mint(amount_out)
     _transfer_assets_from_sender(msg_sender, 0, assets_len, amounts_to_transfer)
@@ -435,14 +415,14 @@ func burn{
     alloc_locals
     uint256_check(amount)
     let (local msg_sender) = get_caller_address()
-    let (local fee_recipient) = _fee_recipient.read()
+    let (local fee_recipient) = INDEX_fee_recipient.read()
     let (local owner) = _owner.read()
-    let (local burn_fee) = _burn_fee.read()
+    let (local burn_fee) = INDEX_burn_fee.read()
     let (local _total_supply: Uint256) = total_supply.read()
     let (is_greater_than_zero) = uint256_lt(Uint256(0, 0), _total_supply)
     assert is_greater_than_zero = 1
 
-    let (local assets_len) = _num_assets.read()
+    let (local assets_len) = INDEX_num_assets.read()
 
     let (min_burn_amount) = pow(10, 6)
     let (enough_burn_amount) = uint256_le(Uint256(min_burn_amount, 0), amount)
@@ -483,7 +463,7 @@ func update_fee_recipient{
     }(new_fee_recipient: felt):
     _only_owner()
     assert_not_equal(new_fee_recipient, 0)
-    _fee_recipient.write(new_fee_recipient)
+    INDEX_fee_recipient.write(new_fee_recipient)
     return ()
 end
 
@@ -495,7 +475,7 @@ func update_mint_fee{
     }(new_fee: felt):
     _only_owner()
     assert_le(new_fee, MAX_MINT_FEE)
-    _mint_fee.write(new_fee)
+    INDEX_mint_fee.write(new_fee)
     return ()
 end
 
@@ -507,7 +487,7 @@ func update_burn_fee{
     }(new_fee: felt):
     _only_owner()
     assert_le(new_fee, MAX_BURN_FEE)
-    _burn_fee.write(new_fee)
+    INDEX_burn_fee.write(new_fee)
     return ()
 end
 
@@ -521,7 +501,7 @@ func sweep{
     _only_owner()
     assert_not_equal(token, 0)
     assert_not_equal(recipient, 0)
-    let (local num_assets) = _num_assets.read()
+    let (local num_assets) = INDEX_num_assets.read()
     let (is_asset) = _is_asset(token, 0, num_assets)
     assert_not_equal(is_asset, 1)
     let (self_address) = get_contract_address()
@@ -544,7 +524,7 @@ func _initial_mint{
     assert assets_len = amounts_len
     assert_in_range(assets_len, 2, MAX_ASSETS + 1)    ## Max 10 assets
 
-    _num_assets.write(assets_len)
+    INDEX_num_assets.write(assets_len)
 
     let (local owner) = _owner.read()
     _initiate_assets(0, assets_len, assets)
@@ -673,14 +653,13 @@ func _is_asset{
     if current_index == num_assets:
         return (0)
     end
-    let (asset_address) = _asset_addresses.read(current_index)
+    let (asset_address) = INDEX_asset_addresses.read(current_index)
     if asset_address == address:
         return (1)
     else:
         return _is_asset(address, current_index + 1, num_assets)
     end
 end
-
 
 func _initiate_assets{
         syscall_ptr : felt*, 
@@ -691,7 +670,7 @@ func _initiate_assets{
     if current_index == num_assets:
         return ()
     end
-    _asset_addresses.write(current_index, [assets])
+    INDEX_asset_addresses.write(current_index, [assets])
     _initiate_assets(current_index + 1, num_assets, assets + 1)
     return ()
 end
@@ -720,7 +699,7 @@ func _transfer_assets_from_sender{
         return ()
     end
     let (self_address) = get_contract_address()
-    let (asset_address) = _asset_addresses.read(current_index)
+    let (asset_address) = INDEX_asset_addresses.read(current_index)
     IERC20.transferFrom(contract_address=asset_address, sender=sender, recipient=self_address, amount=[amounts])
     _transfer_assets_from_sender(sender, current_index + 1, num_assets, amounts + Uint256.SIZE)
     return ()
@@ -734,7 +713,7 @@ func _get_amounts_to_mint{
     alloc_locals
     uint256_check(amount_out)
     let (local _total_supply: Uint256) = total_supply.read()
-    let (local num_assets) = _num_assets.read()
+    let (local num_assets) = INDEX_num_assets.read()
     let (local amounts_start : Uint256*) = alloc()
 
     let (amounts_end: Uint256*) = _build_amounts_to_mint(amount_out, _total_supply, num_assets, 0, amounts_start)
@@ -751,7 +730,7 @@ func _build_amounts_to_mint{
             return (amounts)
         end
         
-        let (asset_address) = _asset_addresses.read(current_index)
+        let (asset_address) = INDEX_asset_addresses.read(current_index)
         let (self_address) = get_contract_address()
         let (asset_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
 
@@ -776,7 +755,7 @@ func _build_amounts_to_mint{
     if current_index == num_assets:
         return ()
     end
-    let (asset_address) = _asset_addresses.read(current_index)
+    let (asset_address) = INDEX_asset_addresses.read(current_index)
     let (self_address) = get_contract_address()
     let (current_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
     let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(current_balance, amount_to_burn)

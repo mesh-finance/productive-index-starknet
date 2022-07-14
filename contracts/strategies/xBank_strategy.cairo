@@ -5,7 +5,6 @@ from starkware.starknet.common.syscalls import get_contract_address
 
 const xBank = 0
 
-#To be called with a library call
 @external 
 func lend{
         syscall_ptr : felt*, 
@@ -30,7 +29,6 @@ func unlend{
 
     let (this_address) = get_contract_address()
 
-    #Wrapped token shouldn't have to be approved
     let (assets) = IERC4626.redeem(xBank,_amount, this_address, this_address)
     
     return(assets)
