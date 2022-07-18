@@ -9,14 +9,14 @@ from starkware.cairo.common.uint256 import (
     Uint256, uint256_add, uint256_sub, uint256_le, uint256_lt, uint256_check, uint256_eq, uint256_mul, uint256_unsigned_div_rem
 )
 from starkware.cairo.common.alloc import alloc
+from lib.ownable import Ownable
 
 #Index storage
 from lib.index_storage import (
     INDEX_num_assets,INDEX_asset_addresses,INDEX_fee_recipient,INDEX_mint_fee,INDEX_burn_fee,Asset
 )
-
 #Index Modules
-from contracts.modules.lending_module import Lending
+from contracts.modules.strategy_module import Strategy
 
 
 const MAX_ASSETS = 10
@@ -73,15 +73,6 @@ func allowances(owner: felt, spender: felt) -> (res: Uint256):
 end
 
 #
-# Storage Ownable
-#
-
-@storage_var
-func _owner() -> (address: felt):
-end
-
-
-#
 # Constructor
 #
 
@@ -104,7 +95,7 @@ func constructor{
     _name.write(name)
     _symbol.write(symbol)
     _decimals.write(18)
-    _owner.write(initial_owner)
+    Ownable.initializer(initial_owner)
     INDEX_fee_recipient.write(initial_owner)
     _initial_mint(assets_len, assets, amounts_len, amounts)
     return ()
@@ -172,20 +163,6 @@ func allowance{
     }(owner: felt, spender: felt) -> (remaining: Uint256):
     let (remaining: Uint256) = allowances.read(owner=owner, spender=spender)
     return (remaining)
-end
-
-#
-# Getters Ownable
-#
-
-@view
-func owner{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (address: felt):
-    let (address) = _owner.read()
-    return (address)
 end
 
 #
@@ -357,21 +334,6 @@ func decreaseAllowance{
 end
 
 #
-# Externals Ownable
-#
-
-@external
-func transfer_ownership{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(new_owner: felt) -> (new_owner: felt):
-    _only_owner()
-    _owner.write(new_owner)
-    return (new_owner=new_owner)
-end
-
-#
 # Externals Index
 #
 
@@ -416,7 +378,6 @@ func burn{
     uint256_check(amount)
     let (local msg_sender) = get_caller_address()
     let (local fee_recipient) = INDEX_fee_recipient.read()
-    let (local owner) = _owner.read()
     let (local burn_fee) = INDEX_burn_fee.read()
     let (local _total_supply: Uint256) = total_supply.read()
     let (is_greater_than_zero) = uint256_lt(Uint256(0, 0), _total_supply)
@@ -461,7 +422,7 @@ func update_fee_recipient{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }(new_fee_recipient: felt):
-    _only_owner()
+    Ownable.assert_only_owner()
     assert_not_equal(new_fee_recipient, 0)
     INDEX_fee_recipient.write(new_fee_recipient)
     return ()
@@ -473,7 +434,7 @@ func update_mint_fee{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }(new_fee: felt):
-    _only_owner()
+    Ownable.assert_only_owner()
     assert_le(new_fee, MAX_MINT_FEE)
     INDEX_mint_fee.write(new_fee)
     return ()
@@ -485,7 +446,7 @@ func update_burn_fee{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }(new_fee: felt):
-    _only_owner()
+    Ownable.assert_only_owner()
     assert_le(new_fee, MAX_BURN_FEE)
     INDEX_burn_fee.write(new_fee)
     return ()
@@ -498,7 +459,7 @@ func sweep{
         range_check_ptr
     }(token: felt, recipient: felt):
     alloc_locals
-    _only_owner()
+    Ownable.assert_only_owner()
     assert_not_equal(token, 0)
     assert_not_equal(recipient, 0)
     let (local num_assets) = INDEX_num_assets.read()
@@ -526,7 +487,7 @@ func _initial_mint{
 
     INDEX_num_assets.write(assets_len)
 
-    let (local owner) = _owner.read()
+    let (local owner) = Ownable.owner()
     _initiate_assets(0, assets_len, assets)
     let (amounts_in_uint256: Uint256*) = alloc()
     let (amounts_in_uint256_end: Uint256*) = _convert_felt_array_to_uint256_array(0, assets_len, amounts, amounts_in_uint256)
@@ -622,21 +583,6 @@ func _burn{
     let (supply: Uint256) = total_supply.read()
     let (new_supply: Uint256) = uint256_sub(supply, amount)
     total_supply.write(new_supply)
-    return ()
-end
-
-#
-# Internals Ownable
-#
-
-func _only_owner{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }():
-    let (owner) = _owner.read()
-    let (caller) = get_caller_address()
-    assert owner = caller
     return ()
 end
 

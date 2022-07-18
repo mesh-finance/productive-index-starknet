@@ -10,5 +10,5 @@ index = [
 ]
 
 lending_module = [
-    "./contracts/modules/lending_module.cairo",
+    "./contracts/modules/strategy_module.cairo",
 ]
