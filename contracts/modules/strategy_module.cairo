@@ -7,7 +7,7 @@ from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.bool import TRUE
 from starkware.starknet.common.syscalls import get_contract_address, library_call
 from lib.index_storage import INDEX_num_assets,INDEX_asset_addresses
-from lib.index_core import Index_Core, MIN_AMOUNT
+from lib.index_core import Index_Core, MIN_ASSET_AMOUNT
 from lib.safemath import SafeUint256
 from lib.ownable import Ownable
 
@@ -46,10 +46,10 @@ func stake{
         local trade_amount: Uint256 = _amount
     end
 
-    #assert that amount left is 0 or larger then MIN_AMOUNT
+    #assert that amount left is 0 or larger then MIN_ASSET_AMOUNT
     #ToDo use uint256 that checks for underflow
     let (remaining_amount: Uint256) = SafeUint256.sub_le(index_asset_balance,_amount)
-    let (is_remaining_amount_sufficient) = uint256_le(Uint256(MIN_AMOUNT,0),remaining_amount)   
+    let (is_remaining_amount_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT,0),remaining_amount)   
     let (local is_total_amount_staked) = uint256_eq(Uint256(0,0),remaining_amount)
     let (is_remaining_amount_valid) = is_le_felt(1,is_remaining_amount_sufficient+is_total_amount_staked)
     assert is_remaining_amount_valid = TRUE
@@ -121,10 +121,10 @@ func unstake{
         local trade_amount: Uint256 = _amount
     end
 
-    #assert that amount left is 0 or larger then MIN_AMOUNT
+    #assert that amount left is 0 or larger then MIN_ASSET_AMOUNT
     #ToDo use uint256 that checks for underflow
     let (remaining_amount: Uint256) = SafeUint256.sub_le(wrapped_asset_balance,_amount)
-    let (is_remaining_amount_sufficient) = uint256_le(Uint256(MIN_AMOUNT,0),remaining_amount)   
+    let (is_remaining_amount_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT,0),remaining_amount)   
     let (local is_total_amount_unstaked) = uint256_eq(Uint256(0,0),remaining_amount)
     let (is_remaining_amount_valid) = is_le_felt(1,is_remaining_amount_sufficient+is_total_amount_unstaked)
     assert is_remaining_amount_valid = TRUE

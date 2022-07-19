@@ -1,9 +1,9 @@
 %lang starknet
 %builtins pedersen range_check ecdsa
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
+from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.starknet.common.syscalls import get_caller_address, get_contract_address, library_call
-from starkware.cairo.common.math import assert_not_zero, assert_in_range, assert_le, assert_not_equal
+from starkware.cairo.common.math import assert_not_zero, assert_le, assert_not_equal
 from starkware.cairo.common.pow import pow
 from starkware.cairo.common.uint256 import (
     Uint256, uint256_add, uint256_sub, uint256_le, uint256_lt, uint256_check, uint256_eq, uint256_mul, uint256_unsigned_div_rem
@@ -16,7 +16,7 @@ from lib.ERC20 import (ERC20,ERC20_total_supply,ERC20_allowances)
 from lib.index_storage import (
     INDEX_num_assets,INDEX_asset_addresses,INDEX_fee_recipient,INDEX_mint_fee,INDEX_burn_fee,INDEX_module_hash,Asset
 )
-from lib.index_core import (Index_Core, MAX_ASSETS, MAX_BPS, MAX_MINT_FEE, MAX_BURN_FEE, MIN_AMOUNT)
+from lib.index_core import (Index_Core, MAX_ASSETS, MAX_BPS, MAX_MINT_FEE, MAX_BURN_FEE, MIN_ASSET_AMOUNT)
 
 #
 # Constructor
@@ -166,8 +166,7 @@ func burn{
 
     let (local assets_len) = INDEX_num_assets.read()
 
-    let (min_burn_amount) = pow(10, 6)
-    let (enough_burn_amount) = uint256_le(Uint256(min_burn_amount, 0), amount)
+    let (enough_burn_amount) = uint256_le(Uint256(MIN_ASSET_AMOUNT, 0), amount)
     assert_not_zero(enough_burn_amount)
 
     local amount_to_burn: Uint256

@@ -16,7 +16,7 @@ from lib.ERC20 import ERC20, ERC20_total_supply, ERC20_decimals
 from lib.ownable import Ownable
 
 const MAX_ASSETS = 10
-const MIN_AMOUNT = 1000000 # 1e6
+const MIN_ASSET_AMOUNT = 1000000 # 1e6 min token amount to prevent rounding errors
 const MAX_BPS = 10000     ## 100% in basis points
 const MAX_MINT_FEE = 500  ## In BPS, 5%, goes to fee recipient
 const MAX_BURN_FEE = 500  ## In BPS, 5%, goes to fee recipient
@@ -136,10 +136,10 @@ namespace Index_Core:
         let (is_asset) = _is_asset(_asset, 0, num)
         assert is_asset = FALSE
 
-        #Balance of added asset should be larger then MIN_AMOUNT
+        #Balance of added asset should be larger then MIN_ASSET_AMOUNT
         let (this_address) = get_contract_address()
         let (asset_balance) = IERC20.balanceOf(_asset,this_address)
-        let (is_balance_sufficient) = uint256_le(Uint256(MIN_AMOUNT,0),asset_balance)
+        let (is_balance_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT,0),asset_balance)
         assert is_balance_sufficient = TRUE
 
         #Add asset to index
