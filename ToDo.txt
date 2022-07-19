@@ -1,0 +1,2 @@
+1.) Create Index Factory
+2.) Create tests...like all of them -> Specifically class Hash registry
