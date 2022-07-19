@@ -1,14 +1,20 @@
 %lang starknet
 
-from openzeppelin.access.ownable import Ownable
+from starkware.cairo.common.cairo_builtins import HashBuiltin
+from lib.ownable import Ownable
+
+struct Strategy_Info:
+    member asset : felt
+    member protocol : felt
+end
 
 struct Strategy:
-    member underlying : felt,
-    member logic : felt
+    member asset : felt
+    member hash: felt
 end
 
 @storage_var
-func wrapped_to_strategy(wrapped_token: felt)->(strategy: Strategy):  
+func asset_to_strategy(info: Strategy_Info)->(strategy_hash: Strategy):  
 end
 
 #
@@ -17,13 +23,15 @@ end
 
 @view
 func get_strategy{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*, 
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(_wrapped_token: felt) -> (strategy: Strategy):
-    let (strategy: Strategy) = wrapped_to_strategy.read(_wrapped_token)
-    return(strategy)
+    }(_asset : felt, _protocol: felt) -> (asset: felt, hash: felt):
+    let (strategy: Strategy) = asset_to_strategy.read(Strategy_Info(_asset,_protocol))
+    return(strategy.asset, strategy.hash)
 end
+
+
 
 #
 #Admin
@@ -34,8 +42,8 @@ func set_strategy{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(_wrapped_token: felt, _strategy: Strategy)->():
+    }(_asset: felt, _opposing_asset: felt, _protocol: felt, _strategy_hash: felt)->():
     Ownable.assert_only_owner()
-    wrapped_to_strategy.write(_wrapped_token, _strategy)
+    asset_to_strategy.write(Strategy_Info(_asset,_protocol), Strategy(_opposing_asset,_strategy_hash))
     return()
 end

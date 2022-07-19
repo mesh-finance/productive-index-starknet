@@ -82,48 +82,7 @@ namespace Index_Core:
         return ()
     end
 
-    func _get_amounts_to_mint{
-            syscall_ptr : felt*, 
-            pedersen_ptr : HashBuiltin*,
-            range_check_ptr
-        }(amount_out: Uint256) -> (amounts: Uint256*):
-        alloc_locals
-        uint256_check(amount_out)
-        let (local _total_supply: Uint256) = total_supply.read()
-        let (local num_assets) = INDEX_num_assets.read()
-        let (local amounts_start : Uint256*) = alloc()
-
-        let (amounts_end: Uint256*) = _build_amounts_to_mint(amount_out, _total_supply, num_assets, 0, amounts_start)
-        return (amounts_start)
-    end
-
-    func _build_amounts_to_mint{
-            syscall_ptr : felt*, 
-            pedersen_ptr : HashBuiltin*,
-            range_check_ptr
-        }(amount_out: Uint256, total_supply: Uint256, num_assets: felt, current_index: felt, amounts: Uint256*) -> (amounts: Uint256*):
-            alloc_locals
-            if current_index == num_assets:
-                return (amounts)
-            end
-            
-            let (asset_address) = INDEX_asset_addresses.read(current_index)
-            let (self_address) = get_contract_address()
-            let (asset_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
-
-            let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(asset_balance, amount_out)
-
-            let (is_equal_to_zero) =  uint256_eq(mul_high, Uint256(0, 0))
-            assert is_equal_to_zero = 1
-
-            let (local amount_in: Uint256, _) = uint256_unsigned_div_rem(mul_low, total_supply)
-
-            assert [amounts] = amount_in
-
-            return _build_amounts_to_mint(amount_out, total_supply, num_assets, current_index + 1, amounts + Uint256.SIZE)
-        end
-            
-        func _transfer_assets_to_sender{
+    func _transfer_assets_to_sender{
             syscall_ptr : felt*, 
             pedersen_ptr : HashBuiltin*,
             range_check_ptr
@@ -143,6 +102,21 @@ namespace Index_Core:
         IERC20.transfer(contract_address=asset_address, recipient=sender, amount=amount_to_transfer)
         _transfer_assets_to_sender(sender, current_index + 1, num_assets, amount_to_burn, total_supply)
         return ()
+    end
+
+    func _get_amounts_to_mint{
+            syscall_ptr : felt*, 
+            pedersen_ptr : HashBuiltin*,
+            range_check_ptr
+        }(amount_out: Uint256) -> (amounts: Uint256*):
+        alloc_locals
+        uint256_check(amount_out)
+        let (local _total_supply: Uint256) = total_supply.read()
+        let (local num_assets) = INDEX_num_assets.read()
+        let (local amounts_start : Uint256*) = alloc()
+
+        let (amounts_end: Uint256*) = _build_amounts_to_mint(amount_out, _total_supply, num_assets, 0, amounts_start)
+        return (amounts_start)
     end
 
     func _add_asset{
@@ -219,3 +193,31 @@ namespace Index_Core:
     end
 
 end
+
+func _build_amounts_to_mint{
+    syscall_ptr : felt*, 
+    pedersen_ptr : HashBuiltin*,
+    range_check_ptr
+}(amount_out: Uint256, total_supply: Uint256, num_assets: felt, current_index: felt, amounts: Uint256*) -> (amounts: Uint256*):
+    alloc_locals
+    if current_index == num_assets:
+        return (amounts)
+    end
+    
+    let (asset_address) = INDEX_asset_addresses.read(current_index)
+    let (self_address) = get_contract_address()
+    let (asset_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
+
+    let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(asset_balance, amount_out)
+
+    let (is_equal_to_zero) =  uint256_eq(mul_high, Uint256(0, 0))
+    assert is_equal_to_zero = 1
+
+    let (local amount_in: Uint256, _) = uint256_unsigned_div_rem(mul_low, total_supply)
+
+    assert [amounts] = amount_in
+
+    return _build_amounts_to_mint(amount_out, total_supply, num_assets, current_index + 1, amounts + Uint256.SIZE)
+end
+            
+    
