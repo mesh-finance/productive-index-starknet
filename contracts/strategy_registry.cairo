@@ -31,8 +31,6 @@ func get_strategy{
     return(strategy.asset, strategy.hash)
 end
 
-
-
 #
 #Admin
 #

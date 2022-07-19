@@ -8,6 +8,10 @@ struct Asset:
 end
 
 @storage_var
+func INDEX_module_hash(selector: felt) -> (class_hash: felt):
+end
+
+@storage_var
 func INDEX_num_assets() -> (num: felt):
 end
 
@@ -25,8 +29,4 @@ end
 
 @storage_var
 func INDEX_burn_fee() -> (fee: felt):
-end
-
-@storage_var
-func STRATEGY_strategy_registry() -> (address: felt):
 end

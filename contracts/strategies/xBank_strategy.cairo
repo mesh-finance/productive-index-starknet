@@ -4,6 +4,7 @@ from contracts.interfaces.IERC4626 import IERC4626
 from starkware.starknet.common.syscalls import get_contract_address
 
 const xBank = 0
+const base = 1000000000000000000
 
 @external 
 func lend{
@@ -32,4 +33,14 @@ func unlend{
     let (assets) = IERC4626.redeem(xBank,_amount, this_address, this_address)
     
     return(assets)
+end
+
+#scaled to 1e18
+@external
+func get_exchange_rate{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }()->(exchange_rate: Uint256):
+    return(Uint256(1*base,0))
 end

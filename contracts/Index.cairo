@@ -2,68 +2,21 @@
 %builtins pedersen range_check ecdsa
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from starkware.starknet.common.syscalls import get_caller_address, get_contract_address
+from starkware.starknet.common.syscalls import get_caller_address, get_contract_address, library_call
 from starkware.cairo.common.math import assert_not_zero, assert_in_range, assert_le, assert_not_equal
 from starkware.cairo.common.pow import pow
 from starkware.cairo.common.uint256 import (
     Uint256, uint256_add, uint256_sub, uint256_le, uint256_lt, uint256_check, uint256_eq, uint256_mul, uint256_unsigned_div_rem
 )
 from starkware.cairo.common.alloc import alloc
+from contracts.interfaces.IERC20 import IERC20
 from lib.ownable import Ownable
-
-#Index storage
+from lib.reentrancy_guard import ReentrancyGuard
+from lib.ERC20 import (ERC20,ERC20_total_supply,ERC20_allowances)
 from lib.index_storage import (
-    INDEX_num_assets,INDEX_asset_addresses,INDEX_fee_recipient,INDEX_mint_fee,INDEX_burn_fee,Asset
+    INDEX_num_assets,INDEX_asset_addresses,INDEX_fee_recipient,INDEX_mint_fee,INDEX_burn_fee,INDEX_module_hash,Asset
 )
 from lib.index_core import (Index_Core, MAX_ASSETS, MAX_BPS, MAX_MINT_FEE, MAX_BURN_FEE, MIN_AMOUNT)
-
-#
-# Interface ERC20
-#
-
-@contract_interface
-namespace IERC20:
-    func balanceOf(account: felt) -> (balance: Uint256):
-    end
-    
-    func transfer(recipient: felt, amount: Uint256) -> (success: felt):
-    end
-
-    func transferFrom(
-            sender: felt, 
-            recipient: felt, 
-            amount: Uint256
-        ) -> (success: felt):
-    end
-end
-
-#
-# Storage ERC20
-#
-
-@storage_var
-func _name() -> (res: felt):
-end
-
-@storage_var
-func _symbol() -> (res: felt):
-end
-
-@storage_var
-func _decimals() -> (res: felt):
-end
-
-@storage_var
-func total_supply() -> (res: Uint256):
-end
-
-@storage_var
-func balances(account: felt) -> (res: Uint256):
-end
-
-@storage_var
-func allowances(owner: felt, spender: felt) -> (res: Uint256):
-end
 
 #
 # Constructor
@@ -85,77 +38,12 @@ func constructor{
     ):
     # get_caller_address() returns '0' in the constructor;
     # therefore, recipient parameter is included
-    _name.write(name)
-    _symbol.write(symbol)
-    _decimals.write(18)
+    ERC20.initializer(name,symbol,18)
     Ownable.initializer(initial_owner)
     INDEX_fee_recipient.write(initial_owner)
-    _initial_mint(assets_len, assets, amounts_len, amounts)
+    #INDEX_module_hash.write(unlend_select)
+    Index_Core._initial_mint(assets_len, assets, amounts_len, amounts)
     return ()
-end
-
-#
-# Getters ERC20
-#
-
-@view
-func name{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (name: felt):
-    let (name) = _name.read()
-    return (name)
-end
-
-@view
-func symbol{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (symbol: felt):
-    let (symbol) = _symbol.read()
-    return (symbol)
-end
-
-@view
-func totalSupply{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (totalSupply: Uint256):
-    let (totalSupply: Uint256) = total_supply.read()
-    return (totalSupply)
-end
-
-@view
-func decimals{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (decimals: felt):
-    let (decimals) = _decimals.read()
-    return (decimals)
-end
-
-@view
-func balanceOf{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(account: felt) -> (balance: Uint256):
-    let (balance: Uint256) = balances.read(account=account)
-    return (balance)
-end
-
-@view
-func allowance{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(owner: felt, spender: felt) -> (remaining: Uint256):
-    let (remaining: Uint256) = allowances.read(owner=owner, spender=spender)
-    return (remaining)
 end
 
 #
@@ -225,106 +113,6 @@ func get_amount_to_mint{
     return (amounts[index])
 end
 
-#
-# Externals ERC20
-#
-
-@external
-func transfer{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(recipient: felt, amount: Uint256) -> (success: felt):
-    let (sender) = get_caller_address()
-    _transfer(sender, recipient, amount)
-
-    # Cairo equivalent to 'return (true)'
-    return (1)
-end
-
-@external
-func transferFrom{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(
-        sender: felt, 
-        recipient: felt, 
-        amount: Uint256
-    ) -> (success: felt):
-    alloc_locals
-    let (local caller) = get_caller_address()
-    let (local caller_allowance: Uint256) = allowances.read(owner=sender, spender=caller)
-
-    # validates amount <= caller_allowance and returns 1 if true   
-    let (enough_balance) = uint256_le(amount, caller_allowance)
-    assert_not_zero(enough_balance)
-
-    _transfer(sender, recipient, amount)
-
-    # subtract allowance
-    let (new_allowance: Uint256) = uint256_sub(caller_allowance, amount)
-    allowances.write(sender, caller, new_allowance)
-
-    # Cairo equivalent to 'return (true)'
-    return (1)
-end
-
-@external
-func approve{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(spender: felt, amount: Uint256) -> (success: felt):
-    let (caller) = get_caller_address()
-    _approve(caller, spender, amount)
-
-    # Cairo equivalent to 'return (true)'
-    return (1)
-end
-
-@external
-func increaseAllowance{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(spender: felt, added_value: Uint256) -> (success: felt):
-    alloc_locals
-    uint256_check(added_value)
-    let (local caller) = get_caller_address()
-    let (local current_allowance: Uint256) = allowances.read(caller, spender)
-
-    # add allowance
-    let (local new_allowance: Uint256, is_overflow) = uint256_add(current_allowance, added_value)
-    assert (is_overflow) = 0
-
-    _approve(caller, spender, new_allowance)
-
-    # Cairo equivalent to 'return (true)'
-    return (1)
-end
-
-@external
-func decreaseAllowance{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(spender: felt, subtracted_value: Uint256) -> (success: felt):
-    alloc_locals
-    uint256_check(subtracted_value)
-    let (local caller) = get_caller_address()
-    let (local current_allowance: Uint256) = allowances.read(owner=caller, spender=spender)
-    let (local new_allowance: Uint256) = uint256_sub(current_allowance, subtracted_value)
-
-    # validates new_allowance < current_allowance and returns 1 if true   
-    let (enough_allowance) = uint256_lt(new_allowance, current_allowance)
-    assert_not_zero(enough_allowance)
-
-    _approve(caller, spender, new_allowance)
-
-    # Cairo equivalent to 'return (true)'
-    return (1)
-end
 
 #
 # Externals Index
@@ -341,7 +129,7 @@ func mint{
     let (local msg_sender) = get_caller_address()
     let (local fee_recipient) = INDEX_fee_recipient.read()
     let (local mint_fee) = INDEX_mint_fee.read()
-    let (local _total_supply: Uint256) = total_supply.read()
+    let (local _total_supply: Uint256) = ERC20_total_supply.read()
     let (is_greater_than_zero) = uint256_lt(Uint256(0, 0), _total_supply)
     assert is_greater_than_zero = 1
 
@@ -355,9 +143,9 @@ func mint{
     assert is_equal_to_zero = 1
 
     let (fee: Uint256, _) = uint256_unsigned_div_rem(mul_low, Uint256(MAX_BPS, 0))
-    _mint(fee_recipient, fee)
+    ERC20._mint(fee_recipient, fee)
     let (final_amount_out: Uint256) = uint256_sub(amount_out, fee)
-    _mint(msg_sender, final_amount_out)
+    ERC20._mint(msg_sender, final_amount_out)
     return ()
 end
 
@@ -372,7 +160,7 @@ func burn{
     let (local msg_sender) = get_caller_address()
     let (local fee_recipient) = INDEX_fee_recipient.read()
     let (local burn_fee) = INDEX_burn_fee.read()
-    let (local _total_supply: Uint256) = total_supply.read()
+    let (local _total_supply: Uint256) = ERC20_total_supply.read()
     let (is_greater_than_zero) = uint256_lt(Uint256(0, 0), _total_supply)
     assert is_greater_than_zero = 1
 
@@ -391,7 +179,7 @@ func burn{
         let (fee: Uint256, _) = uint256_unsigned_div_rem(mul_low, Uint256(MAX_BPS, 0))
         let (local amount_to_burn_local: Uint256) = uint256_sub(amount, fee)
         assert amount_to_burn = amount_to_burn_local
-        _transfer(msg_sender, fee_recipient, fee)
+        ERC20._transfer(msg_sender, fee_recipient, fee)
         tempvar syscall_ptr = syscall_ptr
         tempvar pedersen_ptr = pedersen_ptr
         tempvar range_check_ptr = range_check_ptr
@@ -402,7 +190,7 @@ func burn{
         tempvar range_check_ptr = range_check_ptr
     end
     
-    _burn(msg_sender, amount_to_burn)
+    ERC20._burn(msg_sender, amount_to_burn)
 
     Index_Core._transfer_assets_to_sender(msg_sender, 0, assets_len, amount_to_burn, _total_supply)
     
@@ -466,122 +254,31 @@ end
 
 
 #
-# Internals ERC20
-#
-
-func _initial_mint{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(assets_len: felt, assets: felt*, amounts_len: felt, amounts: felt*):
-    alloc_locals
-    assert assets_len = amounts_len
-    assert_in_range(assets_len, 2, MAX_ASSETS + 1)    ## Max 10 assets
-
-    INDEX_num_assets.write(assets_len)
-
-    let (local owner) = Ownable.owner()
-    Index_Core._initiate_assets(0, assets_len, assets)
-    let (amounts_in_uint256: Uint256*) = alloc()
-    let (amounts_in_uint256_end: Uint256*) = Index_Core._convert_felt_array_to_uint256_array(0, assets_len, amounts, amounts_in_uint256)
-    Index_Core._transfer_assets_from_sender(owner, 0, assets_len, amounts_in_uint256)
-
-    let (local decimals) = _decimals.read()
-    let (local unit) = pow(10, decimals)
-    uint256_check(Uint256(1 * unit, 0))
-    _mint(owner, Uint256(1 * unit, 0))
-    return ()
-end
-
-func _mint{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(recipient: felt, amount: Uint256):
-    alloc_locals
-    assert_not_zero(recipient)
-    uint256_check(amount)
-
-    let (balance: Uint256) = balances.read(account=recipient)
-    # overflow is not possible because sum is guaranteed to be less than total supply
-    # which we check for overflow below
-    let (new_balance, _: Uint256) = uint256_add(balance, amount)
-    balances.write(recipient, new_balance)
-
-    let (local supply: Uint256) = total_supply.read()
-    let (local new_supply: Uint256, is_overflow) = uint256_add(supply, amount)
-    assert (is_overflow) = 0
-
-    total_supply.write(new_supply)
-    return ()
-end
-
-func _transfer{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(sender: felt, recipient: felt, amount: Uint256):
-    alloc_locals
-    assert_not_zero(sender)
-    assert_not_zero(recipient)
-    uint256_check(amount) # almost surely not needed, might remove after confirmation
-
-    let (local sender_balance: Uint256) = balances.read(account=sender)
-
-    # validates amount <= sender_balance and returns 1 if true
-    let (enough_balance) = uint256_le(amount, sender_balance)
-    assert_not_zero(enough_balance)
-
-    # subtract from sender
-    let (new_sender_balance: Uint256) = uint256_sub(sender_balance, amount)
-    balances.write(sender, new_sender_balance)
-
-    # add to recipient
-    let (recipient_balance: Uint256) = balances.read(account=recipient)
-    # overflow is not possible because sum is guaranteed by mint to be less than total supply
-    let (new_recipient_balance, _: Uint256) = uint256_add(recipient_balance, amount)
-    balances.write(recipient, new_recipient_balance)
-    return ()
-end
-
-func _approve{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(caller: felt, spender: felt, amount: Uint256):
-    assert_not_zero(caller)
-    assert_not_zero(spender)
-    uint256_check(amount)
-    allowances.write(caller, spender, amount)
-    return ()
-end
-
-func _burn{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(account: felt, amount: Uint256):
-    alloc_locals
-    assert_not_zero(account)
-    uint256_check(amount)
-
-    let (balance: Uint256) = balances.read(account)
-    # validates amount <= balance and returns 1 if true
-    let (enough_balance) = uint256_le(amount, balance)
-    assert_not_zero(enough_balance)
-    
-    let (new_balance: Uint256) = uint256_sub(balance, amount)
-    balances.write(account, new_balance)
-
-    let (supply: Uint256) = total_supply.read()
-    let (new_supply: Uint256) = uint256_sub(supply, amount)
-    total_supply.write(new_supply)
-    return ()
-end
-
-
-#
 # Default Entry Point
 #
 
-#Reentrancy protection!!!
+@external
+@raw_input
+@raw_output
+func __default__{
+    syscall_ptr : felt*,
+    pedersen_ptr : HashBuiltin*,
+    range_check_ptr,
+}(selector : felt, calldata_size : felt, calldata : felt*) -> (
+    retdata_size : felt, retdata : felt*
+):
+    ReentrancyGuard._start()
+
+    let (class_hash) = INDEX_module_hash.read(selector)
+
+    let (retdata_size : felt, retdata : felt*) = library_call(
+        class_hash=class_hash,
+        function_selector=selector,
+        calldata_size=calldata_size,
+        calldata=calldata,
+    )
+
+    ReentrancyGuard._end()
+    
+    return (retdata_size=retdata_size, retdata=retdata)
+end
