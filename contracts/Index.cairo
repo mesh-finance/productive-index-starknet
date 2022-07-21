@@ -1,5 +1,4 @@
 %lang starknet
-%builtins pedersen range_check ecdsa
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.starknet.common.syscalls import get_caller_address, get_contract_address, library_call
@@ -34,15 +33,27 @@ func constructor{
         assets_len: felt,
         assets: felt*,
         amounts_len: felt, 
-        amounts: felt*
+        amounts: felt*,
+        module_hashes_len: felt, 
+        module_hashes: felt*, 
+        selectors_len: felt, 
+        selectors: felt*
     ):
     # get_caller_address() returns '0' in the constructor;
     # therefore, recipient parameter is included
     ERC20.initializer(name,symbol,18)
     Ownable.initializer(initial_owner)
     INDEX_fee_recipient.write(initial_owner)
-    #INDEX_module_hash.write(unlend_select)
-    Index_Core._initial_mint(assets_len, assets, amounts_len, amounts)
+    Index_Core.initialize(
+        assets_len,
+        assets,
+        amounts_len, 
+        amounts,
+        module_hashes_len, 
+        module_hashes, 
+        selectors_len, 
+        selectors
+    )
     return ()
 end
 

@@ -9,6 +9,10 @@ index = [
     "./contracts/Index.cairo",
 ]
 
+index_factory = [
+    "./contracts/index_factory.cairo",
+]
+
 lending_module = [
     "./contracts/modules/strategy_module.cairo",
 ]
