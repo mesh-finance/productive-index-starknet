@@ -1,6 +1,6 @@
 %lang starknet
 
-from contracts.interfaces.IERC4626 import IERC4626
+from src.interfaces.IERC4626 import IERC4626
 from starkware.starknet.common.syscalls import get_contract_address
 
 const xBank = 0

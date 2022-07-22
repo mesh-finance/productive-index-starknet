@@ -8,7 +8,7 @@ from starkware.cairo.common.uint256 import (
     Uint256, uint256_add, uint256_sub, uint256_le, uint256_lt, uint256_check, uint256_eq, uint256_mul, uint256_unsigned_div_rem
 )
 from starkware.cairo.common.alloc import alloc
-from contracts.interfaces.IERC20 import IERC20
+from src.interfaces.IERC20 import IERC20
 from lib.ownable import Ownable
 from lib.reentrancy_guard import ReentrancyGuard
 from lib.ERC20 import (ERC20,ERC20_total_supply,ERC20_allowances)

@@ -11,8 +11,8 @@ from lib.index_core import Index_Core, MIN_ASSET_AMOUNT
 from lib.safemath import SafeUint256
 from lib.ownable import Ownable
 
-from contracts.interfaces.IStrategy_registry import IStrategy_registry
-from contracts.interfaces.IERC20 import IERC20
+from src.interfaces.IStrategy_registry import IStrategy_registry
+from src.interfaces.IERC20 import IERC20
 
 #ToDo: generate selectors
 const stake_selector = 23764872364238

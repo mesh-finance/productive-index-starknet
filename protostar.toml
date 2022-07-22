@@ -6,21 +6,21 @@ libs_path = "lib"
 
 ["protostar.contracts"]
 index = [
-    "./contracts/Index.cairo",
+    "./src/Index.cairo",
 ]
 
 index_factory = [
-    "./contracts/index_factory.cairo",
+    "./src/index_factory.cairo",
 ]
 
 lending_module = [
-    "./contracts/modules/strategy_module.cairo",
+    "./src/modules/strategy_module.cairo",
 ]
 
 strategy_registry = [
-    "./contracts/strategy_registry.cairo",
+    "./src/strategy_registry.cairo",
 ]
 
 module_registry = [
-    "./contracts/module_registry.cairo",
+    "./src/module_registry.cairo",
 ]
