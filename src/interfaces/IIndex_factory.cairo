@@ -17,4 +17,7 @@ namespace IIndex_factory:
     ) -> (new_index_address: felt):
     end
 
+    func set_index_hash(_index_hash: felt):
+    end
+
 end

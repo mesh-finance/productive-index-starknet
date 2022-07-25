@@ -12,8 +12,8 @@ from starkware.cairo.common.uint256 import (
 )
 from src.interfaces.IERC20 import IERC20
 from lib.index_storage import (INDEX_asset_addresses, INDEX_num_assets, INDEX_module_hash)
-from lib.ERC20 import ERC20, ERC20_total_supply, ERC20_decimals
-from lib.ownable import Ownable
+from src.openzeppelin.token.erc20.library import ERC20, ERC20_total_supply, ERC20_decimals
+from src.openzeppelin.access.ownable import Ownable
 
 const MAX_ASSETS = 10
 const MIN_ASSET_AMOUNT = 1000000 # 1e6 min token amount to prevent rounding errors
@@ -22,26 +22,58 @@ const MAX_MINT_FEE = 500  ## In BPS, 5%, goes to fee recipient
 const MAX_BURN_FEE = 500  ## In BPS, 5%, goes to fee recipient
 
 namespace Index_Core:
-
-    func initialize{
-            syscall_ptr : felt*, 
-            pedersen_ptr : HashBuiltin*,
-            range_check_ptr
+    
+    func _set_modules{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
         }(
-            assets_len: felt,
-            assets: felt*,
-            amounts_len: felt, 
-            amounts: felt*,
             module_hashes_len: felt, 
             module_hashes: felt*, 
             selectors_len: felt, 
             selectors: felt*
         ):
-        #Initital Mint
-        _initial_mint(assets_len, assets, amounts_len, amounts)
-        #Enable Modules
-        _set_modules(module_hashes_len,module_hashes,selectors_len,selectors)
+
+        if module_hashes_len == 0:
+            return()
+        end
+
+        INDEX_module_hash.write(selectors[0],module_hashes[0])
+
+        _set_modules(module_hashes_len-1,module_hashes+1,selectors_len,selectors+1)
+
         return()
+    end
+
+    #TODO:
+    #Change this so that initial mint amount is a parameter and not alway 1
+    func _initial_mint{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+        }(
+            assets_len: felt, 
+            assets: felt*, 
+            amounts_len: felt, 
+            amounts: felt*
+        ):
+        alloc_locals
+        assert assets_len = amounts_len
+        assert_in_range(assets_len, 2, MAX_ASSETS + 1)    ## Max 10 assets
+
+        INDEX_num_assets.write(assets_len)
+
+        let (local owner) = Ownable.owner()
+        _initiate_assets(0, assets_len, assets)
+        let (amounts_in_uint256: Uint256*) = alloc()
+        let (amounts_in_uint256_end: Uint256*) = _convert_felt_array_to_uint256_array(0, assets_len, amounts, amounts_in_uint256)
+        Index_Core._transfer_assets_from_sender(owner, 0, assets_len, amounts_in_uint256)
+
+        let (local decimals) = ERC20_decimals.read()
+        let (local unit) = pow(10, decimals)
+        uint256_check(Uint256(1 * unit, 0))
+        ERC20._mint(owner, Uint256(1 * unit, 0))
+        return ()
     end
 
     func _is_asset{
@@ -217,54 +249,6 @@ func _build_amounts_to_mint{
     assert [amounts] = amount_in
 
     return _build_amounts_to_mint(amount_out, total_supply, num_assets, current_index + 1, amounts + Uint256.SIZE)
-end
-
-func _set_modules{
-    syscall_ptr : felt*, 
-    pedersen_ptr : HashBuiltin*,
-    range_check_ptr
-    }(
-        module_hashes_len: felt, 
-        module_hashes: felt*, 
-        selectors_len: felt, 
-        selectors: felt*
-    ):
-
-    if module_hashes_len == 0:
-        return()
-    end
-
-    INDEX_module_hash.write(selectors[0],module_hashes[0])
-
-    _set_modules(module_hashes_len-1,module_hashes+1,selectors_len,selectors+1)
-
-    return()
-end
-
-#TODO:
-#Change this so that initial mint amount is a parameter and not alway 1
-func _initial_mint{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
-    range_check_ptr
-}(assets_len: felt, assets: felt*, amounts_len: felt, amounts: felt*):
-    alloc_locals
-    assert assets_len = amounts_len
-    assert_in_range(assets_len, 2, MAX_ASSETS + 1)    ## Max 10 assets
-
-    INDEX_num_assets.write(assets_len)
-
-    let (local owner) = Ownable.owner()
-    _initiate_assets(0, assets_len, assets)
-    let (amounts_in_uint256: Uint256*) = alloc()
-    let (amounts_in_uint256_end: Uint256*) = _convert_felt_array_to_uint256_array(0, assets_len, amounts, amounts_in_uint256)
-    Index_Core._transfer_assets_from_sender(owner, 0, assets_len, amounts_in_uint256)
-
-    let (local decimals) = ERC20_decimals.read()
-    let (local unit) = pow(10, decimals)
-    uint256_check(Uint256(1 * unit, 0))
-    ERC20._mint(owner, Uint256(1 * unit, 0))
-    return ()
 end
 
 func _initiate_assets{

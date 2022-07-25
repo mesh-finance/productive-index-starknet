@@ -1,7 +1,7 @@
 %lang starknet
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from lib.ownable import Ownable
+from src.openzeppelin.access.ownable import Ownable
 
 struct Strategy_Info:
     member asset : felt

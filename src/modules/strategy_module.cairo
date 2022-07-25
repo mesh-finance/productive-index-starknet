@@ -8,8 +8,8 @@ from starkware.cairo.common.bool import TRUE
 from starkware.starknet.common.syscalls import get_contract_address, library_call
 from lib.index_storage import INDEX_num_assets,INDEX_asset_addresses
 from lib.index_core import Index_Core, MIN_ASSET_AMOUNT
-from lib.safemath import SafeUint256
-from lib.ownable import Ownable
+from src.openzeppelin.security.safemath import SafeUint256
+from src.openzeppelin.access.ownable import Ownable
 
 from src.interfaces.IStrategy_registry import IStrategy_registry
 from src.interfaces.IERC20 import IERC20

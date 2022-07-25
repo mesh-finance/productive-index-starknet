@@ -1,7 +1,7 @@
 %lang starknet
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from lib.ownable import Ownable
+from src.openzeppelin.access.ownable import Ownable
 
 #MANDATORY MODULES
 #1 ERC20
@@ -10,7 +10,6 @@ from lib.ownable import Ownable
 #1 Strategies
 #2 Re-balancing
 #3 Index re-allocation
-
 
 @storage_var
 func index_to_module_hash(index: felt)->(hash: felt):  

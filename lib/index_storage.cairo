@@ -30,3 +30,7 @@ end
 @storage_var
 func INDEX_burn_fee() -> (fee: felt):
 end
+
+@storage_var
+func INDEX_is_initialized() -> (is_initialized: felt):
+end

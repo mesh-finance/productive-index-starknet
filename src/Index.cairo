@@ -4,16 +4,24 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.starknet.common.syscalls import get_caller_address, get_contract_address, library_call
 from starkware.cairo.common.math import assert_not_zero, assert_le, assert_not_equal
 from starkware.cairo.common.pow import pow
+from starkware.cairo.common.bool import TRUE, FALSE
 from starkware.cairo.common.uint256 import (
     Uint256, uint256_add, uint256_sub, uint256_le, uint256_lt, uint256_check, uint256_eq, uint256_mul, uint256_unsigned_div_rem
 )
 from starkware.cairo.common.alloc import alloc
 from src.interfaces.IERC20 import IERC20
-from lib.ownable import Ownable
-from lib.reentrancy_guard import ReentrancyGuard
-from lib.ERC20 import (ERC20,ERC20_total_supply,ERC20_allowances)
+from src.openzeppelin.access.ownable import Ownable
+from src.openzeppelin.security.reentrancy_guard import ReentrancyGuard
+from src.openzeppelin.token.erc20.library import (ERC20,ERC20_total_supply,ERC20_allowances)
 from lib.index_storage import (
-    INDEX_num_assets,INDEX_asset_addresses,INDEX_fee_recipient,INDEX_mint_fee,INDEX_burn_fee,INDEX_module_hash,Asset
+    INDEX_num_assets,
+    INDEX_asset_addresses,
+    INDEX_fee_recipient,
+    INDEX_mint_fee,
+    INDEX_burn_fee,
+    INDEX_module_hash,
+    INDEX_is_initialized,
+    Asset
 )
 from lib.index_core import (Index_Core, MAX_ASSETS, MAX_BPS, MAX_MINT_FEE, MAX_BURN_FEE, MIN_ASSET_AMOUNT)
 
@@ -39,21 +47,19 @@ func constructor{
         selectors_len: felt, 
         selectors: felt*
     ):
-    # get_caller_address() returns '0' in the constructor;
-    # therefore, recipient parameter is included
     ERC20.initializer(name,symbol,18)
     Ownable.initializer(initial_owner)
     INDEX_fee_recipient.write(initial_owner)
-    Index_Core.initialize(
-        assets_len,
-        assets,
-        amounts_len, 
-        amounts,
-        module_hashes_len, 
-        module_hashes, 
-        selectors_len, 
-        selectors
-    )
+    #Index_Core.initialize(
+    #    assets_len,
+    #    assets,
+    #    amounts_len, 
+    #    amounts,
+    #    module_hashes_len, 
+    #    module_hashes, 
+    #    selectors_len, 
+    #    selectors
+    #)
     return ()
 end
 
@@ -262,6 +268,37 @@ func sweep{
     return ()
 end
 
+@external
+func initialize{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(
+        assets_len: felt,
+        assets: felt*,
+        amounts_len: felt, 
+        amounts: felt*,
+        module_hashes_len: felt, 
+        module_hashes: felt*, 
+        selectors_len: felt, 
+        selectors: felt*
+    ):
+    Ownable.assert_only_owner()
+
+    let (is_index_initialized) = INDEX_is_initialized.read()
+    with_attr error_message("Index is already initialized"):
+        assert is_index_initialized = FALSE
+    end
+
+    #Initital Mint
+    Index_Core._initial_mint(assets_len, assets, amounts_len, amounts)
+    #Enable Modules
+    Index_Core._set_modules(module_hashes_len,module_hashes,selectors_len,selectors)
+
+    INDEX_is_initialized.write(TRUE)
+    return()
+end
+
 
 #
 # Default Entry Point
@@ -291,4 +328,117 @@ func __default__{
     ReentrancyGuard._end()
     
     return (retdata_size=retdata_size, retdata=retdata)
+end
+
+
+#
+# Externals ERC20
+#
+
+@external
+func transferFrom{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(
+        sender: felt,
+        recipient: felt,
+        amount: Uint256
+    ) -> (success: felt):
+    ERC20.transfer_from(sender, recipient, amount)
+    return (TRUE)
+end
+
+@external
+func approve{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(spender: felt, amount: Uint256) -> (success: felt):
+    ERC20.approve(spender, amount)
+    return (TRUE)
+end
+
+@external
+func increaseAllowance{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(spender: felt, added_value: Uint256) -> (success: felt):
+    ERC20.increase_allowance(spender, added_value)
+    return (TRUE)
+end
+
+@external
+func decreaseAllowance{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(spender: felt, subtracted_value: Uint256) -> (success: felt):
+    ERC20.decrease_allowance(spender, subtracted_value)
+    return (TRUE)
+end
+
+#
+# Getters ERC20
+#
+
+@view
+func name{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }() -> (name: felt):
+    let (name) = ERC20.name()
+    return (name)
+end
+
+@view
+func symbol{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }() -> (symbol: felt):
+    let (symbol) = ERC20.symbol()
+    return (symbol)
+end
+
+@view
+func totalSupply{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }() -> (totalSupply: Uint256):
+    let (totalSupply: Uint256) = ERC20.total_supply()
+    return (totalSupply)
+end
+
+@view
+func decimals{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }() -> (decimals: felt):
+    let (decimals) = ERC20.decimals()
+    return (decimals)
+end
+
+@view
+func balanceOf{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(account: felt) -> (balance: Uint256):
+    let (balance: Uint256) = ERC20.balance_of(account)
+    return (balance)
+end
+
+@view
+func allowance{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(owner: felt, spender: felt) -> (remaining: Uint256):
+    let (remaining: Uint256) = ERC20.allowance(owner, spender)
+    return (remaining)
 end
