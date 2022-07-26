@@ -37,15 +37,7 @@ func constructor{
     }(
         name: felt,
         symbol: felt,
-        initial_owner: felt,
-        assets_len: felt,
-        assets: felt*,
-        amounts_len: felt, 
-        amounts: felt*,
-        module_hashes_len: felt, 
-        module_hashes: felt*, 
-        selectors_len: felt, 
-        selectors: felt*
+        initial_owner: felt
     ):
     ERC20.initializer(name,symbol,18)
     Ownable.initializer(initial_owner)
@@ -336,6 +328,16 @@ end
 #
 
 @external
+func transfer{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(recipient: felt, amount: Uint256) -> (success: felt):
+    ERC20.transfer(recipient, amount)
+    return (TRUE)
+end
+
+@external
 func transferFrom{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
@@ -441,4 +443,28 @@ func allowance{
     }(owner: felt, spender: felt) -> (remaining: Uint256):
     let (remaining: Uint256) = ERC20.allowance(owner, spender)
     return (remaining)
+end
+
+#
+# Ownership Functions (Temporary, Hopefully can be imported together with ERC20 functions)
+#
+
+@view
+func owner{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }() -> (owner: felt):
+    let (owner) = Ownable.owner()
+    return (owner=owner)
+end
+
+@external
+func transfer_ownership{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(new_owner: felt):
+    Ownable.transfer_ownership(new_owner)
+    return ()
 end

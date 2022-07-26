@@ -60,29 +60,19 @@ func create_index{
     let(class_hash) = index_hash.read()
     let (current_salt) = salt.read()
 
-    let (calldata: felt*) = alloc()
+    let (caller) = get_caller_address()
+    let (local this_address) = get_contract_address()
 
-    #Packing all calldata information into 1 felt pointer
-    #Not very pretty....there is probably a better way
-    let (calldata_len: felt) = pack_calldata(
-        calldata,
-        _name,
-        _symbol,
-        _assets_len,
-        _assets,
-        _amounts_len, 
-        _amounts,
-        _module_hashes_len, 
-        _module_hashes, 
-        _selectors_len, 
-        _selectors
-    )
+    let (calldata: felt*) = alloc()
+    assert calldata[0] = _name
+    assert calldata[1] = _symbol
+    assert calldata[2] = this_address
 
     #Deploy Index
     let (new_index_address) = deploy(
         class_hash,
         current_salt,
-        calldata_len,
+        3,
         calldata,
     )
 
@@ -103,6 +93,14 @@ func create_index{
         _selectors_len, 
         _selectors
     )
+
+    #Transfer ownership to sender
+    IIndex.transfer_ownership(new_index_address,caller)
+
+    let (initial_mint_amount: Uint256) = IERC20.balanceOf(new_index_address, this_address)
+
+    #Send initially minted tokens to caller
+    IERC20.transfer(new_index_address,caller,initial_mint_amount)
 
     #increment salt
     salt.write(current_salt + 1)

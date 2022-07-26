@@ -5,7 +5,10 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.uint256 import Uint256
 
+from lib.index_storage import Asset
+
 from src.interfaces.IIndex_factory import IIndex_factory
+from src.interfaces.IIndex import IIndex
 from src.interfaces.IERC20 import IERC20
 
 const base = 1000000000000000000 # 1e18
@@ -48,7 +51,7 @@ func __setup__{
     %{ ids.ERC20_3 = context.ERC20_3 %}
 
     ###########################################
-    #       Generate Startegy_Module Hash
+    #       Generate Module Hashes
     ###########################################
 
     local strategy_hash: felt
@@ -57,6 +60,22 @@ func __setup__{
         prepared = prepare(declared, [])
         ids.strategy_hash = prepared.class_hash
         context.strategy_hash = ids.strategy_hash
+    %}
+
+    local erc20_hash: felt
+    %{
+        declared = declare("./src/openzeppelin/token/erc20/library.cairo")
+        prepared = prepare(declared, [])
+        ids.erc20_hash = prepared.class_hash
+        context.erc20_hash = ids.erc20_hash
+    %}
+
+    local ownable_hash: felt
+    %{
+        declared = declare("./src/openzeppelin/access/ownable.cairo")
+        prepared = prepare(declared, [])
+        ids.ownable_hash = prepared.class_hash
+        context.ownable_hash = ids.ownable_hash
     %}
 
     ###########################################
@@ -198,9 +217,8 @@ func test_factory{
     IERC20.transfer(ERC20_3,index_factory_address,Uint256(amounts[2]*2,0))
     %{stop_prank_callable()%}
 
-
-    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.index_factory_address) %}
     #Create Index
+    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.index_factory_address) %}
     let (local new_index_address) = IIndex_factory.create_index(
         index_factory_address,
         name,
@@ -215,6 +233,28 @@ func test_factory{
         selectors
     )
     %{ stop_prank_callable() %}
+
+    ###########################################
+    #             Perform Tests
+    ###########################################
+
+    #Check that ERC20 functions are callable
+    let (actual_name) = IERC20.name(new_index_address)
+    assert_eq(name,actual_name)
+
+    #Check that Initial index state is as expected
+    let (initial_mint_amount: Uint256) = IERC20.balanceOf(new_index_address,admin)
+    assert_eq(initial_mint_amount.low,base)
+
+    let (actual_assets_len) = IIndex.num_assets(new_index_address)
+    assert_eq(actual_assets_len,assets_len)
+
+    let (asset0 : Asset) = IIndex.assets(new_index_address,0)
+    assert_eq(asset0.address,ERC20_1)
+    let (asset1 : Asset) = IIndex.assets(new_index_address,1)
+    assert_eq(asset1.address,ERC20_2)
+    let (asset2 : Asset) = IIndex.assets(new_index_address,2)
+    assert_eq(asset2.address,ERC20_3)
 
     %{ print(ids.new_index_address) %}
     

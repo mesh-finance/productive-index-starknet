@@ -1,5 +1,7 @@
 %lang starknet
 
+from lib.index_storage import Asset
+
 @contract_interface
 namespace IIndex:
 
@@ -15,4 +17,12 @@ namespace IIndex:
     ):
     end
 
+    func num_assets() -> (num: felt):
+    end
+
+    func assets(index: felt) -> (asset: Asset):
+    end
+
+    func transfer_ownership(new_owner: felt):
+    end
 end
