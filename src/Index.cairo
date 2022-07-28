@@ -112,6 +112,18 @@ func burn_fee{
     return (fee)
 end
 
+@view
+func get_amounts_to_mint{
+        syscall_ptr : felt*, 
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(amount_out: Uint256) -> (amounts_len: felt, amounts: Uint256*):
+    alloc_locals
+    let (local amount_len) = INDEX_num_assets.read()
+    let (amounts: Uint256*) = Index_Core._get_amounts_to_mint(amount_out)
+    return(amount_len,amounts)
+end    
+
 @external
 func get_amount_to_mint{
         syscall_ptr : felt*, 

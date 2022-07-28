@@ -3,13 +3,16 @@
 from protostar.asserts import (assert_eq)
 from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.uint256 import Uint256
+from starkware.cairo.common.uint256 import (Uint256, uint256_sub)
 
 from lib.index_storage import Asset
+from lib.index_core import MAX_BPS
+from lib.utils import Utils
 
 from src.interfaces.IIndex_factory import IIndex_factory
 from src.interfaces.IIndex import IIndex
 from src.interfaces.IERC20 import IERC20
+
 
 const base = 1000000000000000000 # 1e18
 const stake_selector = 1640128135334360963952617826950674415490722662962339953698475555721960042361
@@ -158,12 +161,17 @@ func test_factory{
     range_check_ptr}():
     alloc_locals
 
+    local admin
+    %{ ids.admin = context.admin %}
+    local user1
+    %{ ids.user1 = context.user1 %}
+    local user2
+    %{ ids.user2 = context.user2 %}
+
     ###########################################
     #        Prepare Index Parameters
     ###########################################
 
-    local admin
-    %{ ids.admin = context.admin %}
     local ERC20_1
     %{ ids.ERC20_1 = context.ERC20_1 %}
     local ERC20_2
@@ -208,13 +216,13 @@ func test_factory{
 
     #Transfer initial tokens to Factory
     %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.ERC20_1) %}
-    IERC20.transfer(ERC20_1,index_factory_address,Uint256(amounts[0]*2,0))
+    IERC20.transfer(ERC20_1,index_factory_address,Uint256(amounts[0],0))
     %{stop_prank_callable()%}
     %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.ERC20_2) %}
-    IERC20.transfer(ERC20_2,index_factory_address,Uint256(amounts[1]*2,0))
+    IERC20.transfer(ERC20_2,index_factory_address,Uint256(amounts[1],0))
     %{stop_prank_callable()%}
     %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.ERC20_3) %}
-    IERC20.transfer(ERC20_3,index_factory_address,Uint256(amounts[2]*2,0))
+    IERC20.transfer(ERC20_3,index_factory_address,Uint256(amounts[2],0))
     %{stop_prank_callable()%}
 
     #Create Index
@@ -257,14 +265,83 @@ func test_factory{
     assert_eq(asset2.address,ERC20_3)
 
     %{ print(ids.new_index_address) %}
-    
-    return()
-end
 
-@external
-func test_lending{
-    syscall_ptr : felt*, 
-    pedersen_ptr : HashBuiltin*, 
-    range_check_ptr}():
+    ###########################################
+    #               Join Indice
+    ###########################################
+    
+    local join_token_amount: Uint256 = Uint256(base,0)
+
+    let (local asset_amounts_len,local asset_amounts: Uint256*) = IIndex.get_amounts_to_mint(new_index_address,join_token_amount)
+
+    #Send Tokens to user1
+    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.ERC20_1) %}
+    IERC20.transfer(ERC20_1,user1,Uint256(1000*base,0))
+    %{stop_prank_callable()%}
+    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.ERC20_2) %}
+    IERC20.transfer(ERC20_2,user1,Uint256(1000*base,0))
+    %{stop_prank_callable()%}
+    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.ERC20_3) %}
+    IERC20.transfer(ERC20_3,user1,Uint256(1000*base,0))
+    %{stop_prank_callable()%}
+
+    #Save original balance of user1
+    let (local original_user_balance_1: Uint256) = IERC20.balanceOf(ERC20_1,user1)
+    let (local original_user_balance_2: Uint256) = IERC20.balanceOf(ERC20_2,user1)
+    let (local original_user_balance_3: Uint256) = IERC20.balanceOf(ERC20_3,user1)
+
+    #Approve token transfers from user1 to Index
+    %{ stop_prank_callable = start_prank(ids.user1, target_contract_address=ids.ERC20_1) %}
+    IERC20.approve(ERC20_1,new_index_address,Uint256(1000*base,0))
+    %{stop_prank_callable()%}
+    %{ stop_prank_callable = start_prank(ids.user1, target_contract_address=ids.ERC20_2) %}
+    IERC20.approve(ERC20_2,new_index_address,Uint256(1000*base,0))
+    %{stop_prank_callable()%}
+    %{ stop_prank_callable = start_prank(ids.user1, target_contract_address=ids.ERC20_3) %}
+    IERC20.approve(ERC20_3,new_index_address,Uint256(1000*base,0))
+    %{stop_prank_callable()%}
+
+    #Mint tokens
+    %{ stop_prank_callable = start_prank(ids.user1, target_contract_address=ids.new_index_address) %}
+    IIndex.mint(new_index_address,join_token_amount)
+    %{stop_prank_callable()%}
+
+    #Check that minted amount is correct
+    let (mint_fee) = IIndex.mint_fee(new_index_address)
+    let (fee_amount: Uint256) = Utils.fmul(join_token_amount,Uint256(mint_fee,0),Uint256(MAX_BPS,0))
+    let (user1_calculated_index_balance: Uint256) = uint256_sub(join_token_amount,fee_amount)
+    let (user1_actual_index_balance: Uint256) = IERC20.balanceOf(new_index_address,user1)
+    assert_eq(user1_actual_index_balance.low,user1_calculated_index_balance.low)
+    assert_eq(user1_actual_index_balance.high,user1_calculated_index_balance.high)
+
+    #Check that token amounts send to Index is correct
+    let (local new_user_balance_1: Uint256) = IERC20.balanceOf(ERC20_1,user1)
+    let (local new_user_balance_2: Uint256) = IERC20.balanceOf(ERC20_2,user1)
+    let (local new_user_balance_3: Uint256) = IERC20.balanceOf(ERC20_3,user1)
+    let (removed_amount1:Uint256) = uint256_sub(original_user_balance_1,new_user_balance_1)
+    let (removed_amount2:Uint256) = uint256_sub(original_user_balance_2,new_user_balance_2)
+    let (removed_amount3:Uint256) = uint256_sub(original_user_balance_3,new_user_balance_3)
+    assert_eq(removed_amount1.low,asset_amounts[0].low)
+    assert_eq(removed_amount2.low,asset_amounts[1].low)
+    assert_eq(removed_amount3.low,asset_amounts[2].low)
+
+    ###########################################
+    #              Stake Tokens
+    ###########################################
+
+    #Set the strategy for one of the tokens
+    IStrategy_registry.set_strategy(_asset, _opposing_asset, _protocol, _strategy_hash)->():
+
+
+    IIndex.stake(_amount, _asset, _protocol)
+
+
+    ###########################################
+    #            Unstake Tokens
+    ###########################################
+
+
+
+
     return()
 end

@@ -9,7 +9,6 @@ from src.openzeppelin.access.ownable import Ownable
 
 from src.interfaces.IIndex import IIndex
 from src.interfaces.IERC20 import IERC20
-from lib.utils import Array
 
 @storage_var
 func salt() -> (value : felt):
@@ -123,48 +122,4 @@ func set_index_hash{
     Ownable.assert_only_owner()
     index_hash.write(_index_hash)
     return()
-end
-
-#
-# Internals
-#
-
-func pack_calldata{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(
-        _calldata: felt*,
-        _name: felt,
-        _symbol: felt,
-        _assets_len: felt,
-        _assets: felt*,
-        _amounts_len: felt, 
-        _amounts: felt*,
-        _module_hashes_len: felt, 
-        _module_hashes: felt*, 
-        _selectors_len: felt, 
-        _selectors: felt*
-    )->(calldata_len: felt):
-    alloc_locals
-
-    #Get Caller Address
-    let (local this_address) = get_contract_address()
-
-    assert _calldata[0] = _name
-    assert _calldata[1] = _symbol
-    assert _calldata[2] = this_address
-    assert _calldata[3] = _assets_len
-    memcpy(_calldata+4, _assets, _assets_len)
-    Array.push(_assets_len+4,_calldata,_amounts_len)
-
-    memcpy(_calldata+_assets_len+5, _amounts, _amounts_len)
-    Array.push(_assets_len+_amounts_len+5,_calldata,_module_hashes_len)
-
-    memcpy(_calldata+_assets_len+_amounts_len+6, _module_hashes, _module_hashes_len)
-    Array.push(_assets_len+_amounts_len+_module_hashes_len+6,_calldata,_selectors_len)
-
-    memcpy(_calldata+_assets_len+_amounts_len+_module_hashes_len+7, _selectors, _selectors_len)
-
-    return(7+_assets_len+_amounts_len+_module_hashes_len+_selectors_len)
 end

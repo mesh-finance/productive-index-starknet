@@ -1,111 +1,31 @@
-%lang starknet 
+%lang starknet
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.alloc import alloc
+from starkware.cairo.common.uint256 import (Uint256,uint256_mul,uint256_signed_div_rem,uint256_unsigned_div_rem)
 
-namespace Array:
+namespace Utils:
 
-    #Updates one specific entry of an array
-    func update{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr}(
-        _new_arr_len: felt,
-        _new_arr:felt*, 
-        _arr_len: felt, 
-        _arr: felt*,
-        _index: felt, 
-        _new_val: felt, 
-        _counter: felt):
-        
-        if _new_arr_len == _counter:
-            return()
-        end
-
-        if _index == _counter:
-            assert _new_arr[0] = _new_val
+    func not_equal{pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        x : felt, y : felt) -> (z : felt):
+        if x != y:
+	        return(1)
         else:
-            assert _new_arr[0] = _arr[0]
-        end
-	
-	    update(_new_arr_len,_new_arr+1,_arr_len,_arr+1,_index,_new_val,_counter+1)
-
-        return()    
+	        return(0)
+        end     
     end
 
-    #Adds one entry to the end of the array
-    func push{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr}(
-        _arr_len: felt, 
-        _arr: felt*, 
-        _new_val: felt) -> ():
-
-        if _arr_len == 0:
-            assert _arr[0] = _new_val
-            return()
-        end
-
-	    push(0, _arr+_arr_len, _new_val)
-
-        return()   
-    end
-
-    #Removes the first entry in the array, shifting every entry down one entry
-    #Returns the value of the first entry that was removed
-    func shift{syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr}(
-        _new_arr_len: felt,
-        _new_arr:felt*, 
-        _arr_len: felt, 
-        _arr: felt*, 
-        _return_val: felt, 
-        _counter: felt) -> (shifted_val: felt):
-
-	alloc_locals
-
-        if _arr_len == _counter:
-            return(_return_val)
-        end
-
-        if _new_arr_len == _counter:
-            assert _new_arr[0] = 0
-        else:
-            assert _new_arr[0] = _arr[1]
-        end
-
-	local new_return_val
-
-        if _counter == 0:
-            assert new_return_val = _arr[0]
-	else:
-	    assert new_return_val = _return_val	
-        end
-
-        let (return_val) = shift(_new_arr_len,_new_arr+1,_arr_len,_arr+1,new_return_val,_counter+1)
-
-        return(return_val)
-    end
-
-    #Get element at index position
-    func get_at_index{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr}(
-        _arr_len: felt, 
-        _arr: felt*,
-        _index: felt, 
-        _counter: felt)->(res: felt):
-        
-        if _index == _counter:
-            return(_arr[0])
-        end
-	
-	    let (res: felt) = get_at_index(_arr_len,_arr+1,_index,_counter+1)
-
-        return(res)    
+    func fmul{pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        x : Uint256, y : Uint256, _base : Uint256) -> (z : Uint256):
+        let (mul_res:Uint256,_) = uint256_mul(x,y)
+        let (division:Uint256,_) = uint256_unsigned_div_rem(mul_res,_base)
+        return(division)
+    end  
+  
+    func fdiv{pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        x : Uint256, y : Uint256, _base : Uint256) -> (z : Uint256):
+        let (mul_res:Uint256,_) = uint256_mul(x,_base)
+        let (division:Uint256,_) = uint256_signed_div_rem(mul_res,y)
+        return(division)
     end
 
 end

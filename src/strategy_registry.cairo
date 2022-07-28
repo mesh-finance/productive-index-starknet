@@ -22,13 +22,27 @@ end
 #
 
 @view
-func get_strategy{
+func get_strategy_hash{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(_asset : felt, _protocol: felt) -> (asset: felt, hash: felt):
-    let (strategy: Strategy) = asset_to_strategy.read(Strategy_Info(_asset,_protocol))
-    return(strategy.asset, strategy.hash)
+    }(_asset : felt,_protocol: felt)->(strategy_hash: felt):
+end
+
+@view
+func get_wrapped_token{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(_underlying: felt, _protocol: felt)->(wrapped_token: felt):
+end 
+    
+@view
+func get_underlying_token{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(_wrapped: felt, _protocol: felt)->(underlying_token: felt):
 end
 
 #
