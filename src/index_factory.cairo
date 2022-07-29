@@ -27,9 +27,8 @@ func constructor{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }():
-    let (owner) = get_caller_address()
-    Ownable.initializer(owner)
+    }(_owner: felt):
+    Ownable.initializer(_owner)
     return ()
 end
 

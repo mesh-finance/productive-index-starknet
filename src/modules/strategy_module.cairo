@@ -30,25 +30,35 @@ func stake{
         range_check_ptr
     }(_amount : Uint256, _asset: felt, _protocol: felt)->(wrapped_amount: Uint256):
     alloc_locals
-    #assert token is part of index
+
+    #Check that asset is part of index
     let (local num_assets) = INDEX_num_assets.read()
     let (is_asset) = Index_Core._is_asset(_asset, 0, num_assets)
-    
-    let (this_address) = get_contract_address()
-    let (index_asset_balance) =  IERC20.balanceOf(_asset,this_address)
 
+    let (local this_address) = get_contract_address()
     let (is_max_value) = uint256_eq(_amount,Uint256(MAX_FELT,MAX_FELT))
+
+    local trade_amount: Uint256
 
     #determine staking amount
     if is_max_value == 1 :
-        local trade_amount: Uint256 = index_asset_balance
+        #Trade entire balance
+        let (index_asset_balance) =  IERC20.balanceOf(_asset,this_address)
+        assert trade_amount = index_asset_balance
+        tempvar syscall_ptr = syscall_ptr
+        tempvar pedersen_ptr = pedersen_ptr
+        tempvar range_check_ptr = range_check_ptr
     else:
-        local trade_amount: Uint256 = _amount
+        #Only trade sepcified amount
+        assert trade_amount = _amount
+        tempvar syscall_ptr = syscall_ptr
+        tempvar pedersen_ptr = pedersen_ptr
+        tempvar range_check_ptr = range_check_ptr
     end
 
     #assert that amount left is 0 or larger then MIN_ASSET_AMOUNT
     #ToDo use uint256 that checks for underflow
-    let (remaining_amount: Uint256) = SafeUint256.sub_le(index_asset_balance,_amount)
+    let (remaining_amount: Uint256) = SafeUint256.sub_le(trade_amount,_amount)
     let (is_remaining_amount_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT,0),remaining_amount)   
     let (local is_total_amount_staked) = uint256_eq(Uint256(0,0),remaining_amount)
     let (is_remaining_amount_valid) = is_le_felt(1,is_remaining_amount_sufficient+is_total_amount_staked)
@@ -56,7 +66,7 @@ func stake{
 
     #Get logic from registry
     let (strategy_registry_address) = strategy_registry.read()
-    let (strategy_class_hash) = IStrategy_registry.get_strategy_hash(strategy_registry_address,_asset,_protocol)
+    let (strategy_class_hash) = IStrategy_registry.get_strategy_hash(strategy_registry_address,_protocol)
 
     ##Execute Strategy Logic
     let (call_data: felt*) = alloc()
@@ -131,7 +141,7 @@ func unstake{
 
     #Get logic from registry
     let (strategy_registry_address) = strategy_registry.read()
-    let (strategy_class_hash) = IStrategy_registry.get_strategy_hash(strategy_registry_address,_wrapped_asset,_protocol)
+    let (strategy_class_hash) = IStrategy_registry.get_strategy_hash(strategy_registry_address,_protocol)
 
     ##Execute Strategy Logic
     let (call_data: felt*) = alloc()
@@ -145,7 +155,7 @@ func unstake{
         call_data
     )
 
-    let (local underlying: felt) = IStrategy_registry.get_underlying_token(strategy_registry_address, _wrapped_asset, _protocol)
+    let (local underlying: felt, _) = IStrategy_registry.get_underlying_token(strategy_registry_address, _wrapped_asset)
 
     #Add/Remove assets from index
     if is_total_amount_unstaked == TRUE:

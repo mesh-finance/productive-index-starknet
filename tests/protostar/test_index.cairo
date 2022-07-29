@@ -10,6 +10,7 @@ from lib.index_core import MAX_BPS
 from lib.utils import Utils
 
 from src.interfaces.IIndex_factory import IIndex_factory
+from src.interfaces.IStrategy_registry import IStrategy_registry
 from src.interfaces.IIndex import IIndex
 from src.interfaces.IERC20 import IERC20
 
@@ -109,7 +110,6 @@ func __setup__{
     #Generate Index Hash
     local index_hash: felt
     %{
-        stop_prank_callable = start_prank(ids.admin, target_contract_address=prepared.contract_address)
         declared = declare("./src/Index.cairo")
         prepared = prepare(declared, [
             ids.name,
@@ -133,7 +133,6 @@ func __setup__{
             ids.selectors_3
         ])
         ids.index_hash = prepared.class_hash
-        stop_prank_callable()
     %}
 
     ###########################################
@@ -142,14 +141,37 @@ func __setup__{
 
     local index_factory_address : felt
     %{ 
-        stop_prank_callable = start_prank(ids.admin, target_contract_address=prepared.contract_address)
-        context.index_factory_address = deploy_contract("./src/index_factory.cairo", []).contract_address 
+        context.index_factory_address = deploy_contract("./src/index_factory.cairo", [ids.admin]).contract_address 
         ids.index_factory_address = context.index_factory_address
     %}
 
-    IIndex_factory.set_index_hash(index_factory_address,index_hash)
-
+    %{stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.index_factory_address)%}
+        IIndex_factory.set_index_hash(index_factory_address,index_hash)
     %{stop_prank_callable()%}
+
+    ###########################################
+    #         Setup Index Strategy
+    ###########################################
+
+    #Deploy Mock_Lending Protocol
+    #ERC4626 (with ERC20_1)
+    #Save wrapped Asset
+
+    #Deploy Strategy Registry
+    local strategy_registry_address : felt
+    %{ 
+        context.strategy_registry_address = deploy_contract("./src/strategy_registry.cairo", [ids.admin]).contract_address 
+        ids.strategy_registry_address = context.strategy_registry_address
+    %}
+
+    #Generate Strategy Hash
+    local ERC4626_strategy_hash: felt
+    %{
+        declared = declare("./src/strategies/ERC4626_strategy.cairo")
+        prepared = prepare(declared, [])
+        ids.ERC4626_strategy_hash = prepared.class_hash
+        context.ERC4626_strategy_hash = ids.ERC4626_strategy_hash
+    %}
 
     return ()
 end
@@ -329,12 +351,23 @@ func test_factory{
     #              Stake Tokens
     ###########################################
 
-    #Set the strategy for one of the tokens
-    IStrategy_registry.set_strategy(_asset, _opposing_asset, _protocol, _strategy_hash)->():
+    local strategy_registry_address
+    %{ ids.strategy_registry_address = context.strategy_registry_address %}
 
+    local ERC4626_strategy_hash
+    %{ ids.ERC4626_strategy_hash = context.ERC4626_strategy_hash %}
 
-    IIndex.stake(_amount, _asset, _protocol)
+    #Arbitrary number that will represent a specific protocol from now onwards
+    local protocol1 = 1
 
+    #Add Strategy to Registry
+    #IStrategy_registry.set_asset_strategy(strategy_registry_address, ERC20_1, wrapped_asset, protocol1)->():
+    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.strategy_registry_address) %}
+        IStrategy_registry.set_protocol_strategy(strategy_registry_address, protocol1, ERC4626_strategy_hash)
+    %{ stop_prank_callable() %}
+    
+    #Stake Asset
+    #IIndex.stake(_amount, _asset, _protocol)
 
     ###########################################
     #            Unstake Tokens

@@ -1,9 +1,11 @@
 %lang starknet
 
+from starkware.cairo.common.cairo_builtins import HashBuiltin
 from src.interfaces.IERC4626 import IERC4626
+from src.interfaces.IERC20 import IERC20
+from starkware.cairo.common.uint256 import Uint256
 from starkware.starknet.common.syscalls import get_contract_address
 
-const xBank = 0
 const base = 1000000000000000000
 
 @external 
@@ -11,12 +13,12 @@ func lend{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*, 
         range_check_ptr
-    }(_amount : Uint256, _underlying_token: felt)->(wrapped_amount: Uint256):
+    }(_amount : Uint256, _underlying_asset: felt, protocol_address: felt)->(wrapped_amount: Uint256):
     
     let (this_address) = get_contract_address()    
 
-    IERC20.approve(_underlying_token,xBank,_amount)
-    let (shares) = IERC4626.deposit(xBank, _amount, this_address)
+    IERC20.approve(_underlying_asset,protocol_address,_amount)
+    let (shares) = IERC4626.deposit(protocol_address, _amount, this_address)
 
     return(shares)
 end
@@ -26,21 +28,21 @@ func unlend{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(_amount : Uint256, _wrapped_token: felt)->(underlying_amount: Uint256):
+    }(_amount : Uint256, protocol_address: felt)->(underlying_amount: Uint256):
 
     let (this_address) = get_contract_address()
 
-    let (assets) = IERC4626.redeem(xBank,_amount, this_address, this_address)
+    let (assets) = IERC4626.redeem(protocol_address, _amount, this_address, this_address)
     
     return(assets)
 end
 
 #scaled to 1e18
-@external
+@view
 func get_exchange_rate{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }()->(exchange_rate: Uint256):
-    return(Uint256(1*base,0))
+    return(Uint256(base,0))
 end
