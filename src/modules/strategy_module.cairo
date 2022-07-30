@@ -15,8 +15,8 @@ from src.interfaces.IStrategy_registry import IStrategy_registry
 from src.interfaces.IERC20 import IERC20
 
 #ToDo: generate selectors
-const stake_selector = 23764872364238
-const unstake_selector = 23764872364238
+const stake_selector = 1640128135334360963952617826950674415490722662962339953698475555721960042361
+const unstake_selector = 1014598069209108454895257238053232298398249443106650014590517510826791002668
 const MAX_FELT = 637587436573436976973597949534
 
 @storage_var
@@ -67,20 +67,20 @@ func stake{
     #Get logic from registry
     let (strategy_registry_address) = strategy_registry.read()
     let (strategy_class_hash) = IStrategy_registry.get_strategy_hash(strategy_registry_address,_protocol)
+    let (local wrapped: felt) = IStrategy_registry.get_wrapped_token(strategy_registry_address, _asset, _protocol)
 
-    ##Execute Strategy Logic
+    #Execute Strategy Logic
     let (call_data: felt*) = alloc()
     call_data[0] = _amount.low
     call_data[1] = _amount.high 
     call_data[2] = _asset
+    call_data[3] = wrapped
     let (retdata_size : felt, retdata : felt*) = library_call(
         strategy_class_hash,
         stake_selector,
-        3,
+        4,
         call_data
     )
-
-    let (local wrapped: felt) = IStrategy_registry.get_wrapped_token(strategy_registry_address, _asset, _protocol)
 
     #Add/Remove assets from index
     if is_total_amount_staked == TRUE:

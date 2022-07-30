@@ -9,30 +9,30 @@ from starkware.starknet.common.syscalls import get_contract_address
 const base = 1000000000000000000
 
 @external 
-func lend{
+func stake{
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*, 
         range_check_ptr
-    }(_amount : Uint256, _underlying_asset: felt, protocol_address: felt)->(wrapped_amount: Uint256):
+    }(_amount : Uint256, _underlying_asset: felt, _wrapped_asset: felt)->(wrapped_amount: Uint256):
     
     let (this_address) = get_contract_address()    
 
-    IERC20.approve(_underlying_asset,protocol_address,_amount)
-    let (shares) = IERC4626.deposit(protocol_address, _amount, this_address)
+    IERC20.approve(_underlying_asset,_wrapped_asset,_amount)
+    let (shares) = IERC4626.deposit(_wrapped_asset, _amount, this_address)
 
     return(shares)
 end
 
 @external
-func unlend{
+func unstake{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(_amount : Uint256, protocol_address: felt)->(underlying_amount: Uint256):
+    }(_amount : Uint256, _wrapped_asset: felt)->(underlying_amount: Uint256):
 
     let (this_address) = get_contract_address()
 
-    let (assets) = IERC4626.redeem(protocol_address, _amount, this_address, this_address)
+    let (assets) = IERC4626.redeem(_wrapped_asset, _amount, this_address, this_address)
     
     return(assets)
 end

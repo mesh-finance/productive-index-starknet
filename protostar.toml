@@ -17,10 +17,18 @@ lending_module = [
     "./src/modules/strategy_module.cairo",
 ]
 
+ERC4626_strategy = [
+    "./src/strategies/ERC4626_strategy.cairo",
+]
+
 strategy_registry = [
     "./src/strategy_registry.cairo",
 ]
 
 module_registry = [
     "./src/module_registry.cairo",
+]
+
+ERC4626 = [
+    "./src/yagi/erc4626/ERC4626.cairo",
 ]

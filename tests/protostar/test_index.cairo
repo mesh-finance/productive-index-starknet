@@ -155,7 +155,13 @@ func __setup__{
 
     #Deploy Mock_Lending Protocol
     #ERC4626 (with ERC20_1)
-    #Save wrapped Asset
+    local yagi_vault_address : felt
+    local wrapped_name = 837465
+    local wrapped_symbol = 837
+    %{ 
+        context.yagi_vault_address = deploy_contract("./src/yagi/erc4626/ERC4626.cairo", [ids.ERC20_1,ids.wrapped_name,ids.wrapped_symbol]).contract_address 
+        ids.yagi_vault_address = context.yagi_vault_address
+    %}
 
     #Deploy Strategy Registry
     local strategy_registry_address : felt

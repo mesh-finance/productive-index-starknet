@@ -8,6 +8,9 @@ namespace IERC20:
     func name()->(name: felt):
     end
 
+    func decimals()->(decimals: felt):
+    end
+
     func balanceOf(account: felt) -> (balance: Uint256):
     end
     
