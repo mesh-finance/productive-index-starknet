@@ -32,9 +32,15 @@ namespace IIndex:
     func assets(index: felt) -> (asset: Asset):
     end
 
+    func set_strategy_registry(_new_registry: felt):
+    end
+
     func transfer_ownership(new_owner: felt):
     end
 
     func get_amounts_to_mint(amount_out: Uint256) -> (amounts_len: felt, amounts: Uint256*):
+    end
+
+    func stake(_amount : Uint256, _asset: felt, _protocol: felt)->(wrapped_amount: Uint256):
     end
 end

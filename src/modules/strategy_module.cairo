@@ -6,7 +6,7 @@ from starkware.cairo.common.math_cmp import is_le_felt
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.bool import TRUE
 from starkware.starknet.common.syscalls import get_contract_address, library_call
-from lib.index_storage import INDEX_num_assets,INDEX_asset_addresses
+from lib.index_storage import INDEX_num_assets, INDEX_asset_addresses, INDEX_strategy_registry
 from lib.index_core import Index_Core, MIN_ASSET_AMOUNT
 from src.openzeppelin.security.safemath import SafeUint256
 from src.openzeppelin.access.ownable import Ownable
@@ -18,10 +18,6 @@ from src.interfaces.IERC20 import IERC20
 const stake_selector = 1640128135334360963952617826950674415490722662962339953698475555721960042361
 const unstake_selector = 1014598069209108454895257238053232298398249443106650014590517510826791002668
 const MAX_FELT = 637587436573436976973597949534
-
-@storage_var
-func strategy_registry() -> (address: felt):
-end
 
 @external
 func stake{
@@ -55,7 +51,7 @@ func stake{
         tempvar pedersen_ptr = pedersen_ptr
         tempvar range_check_ptr = range_check_ptr
     end
-
+    
     #assert that amount left is 0 or larger then MIN_ASSET_AMOUNT
     #ToDo use uint256 that checks for underflow
     let (remaining_amount: Uint256) = SafeUint256.sub_le(trade_amount,_amount)
@@ -63,12 +59,12 @@ func stake{
     let (local is_total_amount_staked) = uint256_eq(Uint256(0,0),remaining_amount)
     let (is_remaining_amount_valid) = is_le_felt(1,is_remaining_amount_sufficient+is_total_amount_staked)
     assert is_remaining_amount_valid = TRUE
-
+    assert 88 = 99
     #Get logic from registry
-    let (strategy_registry_address) = strategy_registry.read()
+    let (strategy_registry_address) = INDEX_strategy_registry.read()
     let (strategy_class_hash) = IStrategy_registry.get_strategy_hash(strategy_registry_address,_protocol)
     let (local wrapped: felt) = IStrategy_registry.get_wrapped_token(strategy_registry_address, _asset, _protocol)
-
+    
     #Execute Strategy Logic
     let (call_data: felt*) = alloc()
     call_data[0] = _amount.low
@@ -140,7 +136,7 @@ func unstake{
     assert is_remaining_amount_valid = TRUE
 
     #Get logic from registry
-    let (strategy_registry_address) = strategy_registry.read()
+    let (strategy_registry_address) = INDEX_strategy_registry.read()
     let (strategy_class_hash) = IStrategy_registry.get_strategy_hash(strategy_registry_address,_protocol)
 
     ##Execute Strategy Logic
@@ -189,6 +185,6 @@ func set_strategy_registry{
         range_check_ptr
     }(_new_registry: felt):
     Ownable.assert_only_owner()
-    strategy_registry.write(_new_registry)
+    INDEX_strategy_registry.write(_new_registry)
     return()
 end

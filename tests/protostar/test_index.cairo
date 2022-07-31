@@ -19,6 +19,8 @@ const base = 1000000000000000000 # 1e18
 const stake_selector = 1640128135334360963952617826950674415490722662962339953698475555721960042361
 const unstake_selector = 1014598069209108454895257238053232298398249443106650014590517510826791002668
 const set_strategy_registry_selector = 762785838310885800878865590618530261278822814355561342555512793822747737561
+#Arbitrary number that will represent a specific protocol
+const protocol1 = 1
 
 @external
 func __setup__{
@@ -179,6 +181,18 @@ func __setup__{
         context.ERC4626_strategy_hash = ids.ERC4626_strategy_hash
     %}
 
+    #Add Strategy to Registry
+    #IStrategy_registry.set_asset_strategy(strategy_registry_address, ERC20_1, wrapped_asset, protocol1)->():
+    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.strategy_registry_address) %}
+        IStrategy_registry.set_protocol_strategy(strategy_registry_address, protocol1, ERC4626_strategy_hash)
+        IStrategy_registry.set_asset_strategy(strategy_registry_address,ERC20_1, yagi_vault_address, protocol1)
+    %{ stop_prank_callable() %}
+
+    #Add Strategy Registry to IndexFactory
+    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.index_factory_address) %}
+        IIndex_factory.set_strategy_registry(index_factory_address,strategy_registry_address)
+    %{ stop_prank_callable() %}
+
     return ()
 end
 
@@ -317,6 +331,10 @@ func test_factory{
     let (local original_user_balance_1: Uint256) = IERC20.balanceOf(ERC20_1,user1)
     let (local original_user_balance_2: Uint256) = IERC20.balanceOf(ERC20_2,user1)
     let (local original_user_balance_3: Uint256) = IERC20.balanceOf(ERC20_3,user1)
+    #Save original balance of index
+    let (local original_index_balance_1: Uint256) = IERC20.balanceOf(ERC20_1,new_index_address)
+    let (local original_index_balance_2: Uint256) = IERC20.balanceOf(ERC20_2,new_index_address)
+    let (local original_index_balance_3: Uint256) = IERC20.balanceOf(ERC20_3,new_index_address)
 
     #Approve token transfers from user1 to Index
     %{ stop_prank_callable = start_prank(ids.user1, target_contract_address=ids.ERC20_1) %}
@@ -331,7 +349,7 @@ func test_factory{
 
     #Mint tokens
     %{ stop_prank_callable = start_prank(ids.user1, target_contract_address=ids.new_index_address) %}
-    IIndex.mint(new_index_address,join_token_amount)
+        IIndex.mint(new_index_address,join_token_amount)
     %{stop_prank_callable()%}
 
     #Check that minted amount is correct
@@ -342,7 +360,7 @@ func test_factory{
     assert_eq(user1_actual_index_balance.low,user1_calculated_index_balance.low)
     assert_eq(user1_actual_index_balance.high,user1_calculated_index_balance.high)
 
-    #Check that token amounts send to Index is correct
+    #Check user token amounts are correct
     let (local new_user_balance_1: Uint256) = IERC20.balanceOf(ERC20_1,user1)
     let (local new_user_balance_2: Uint256) = IERC20.balanceOf(ERC20_2,user1)
     let (local new_user_balance_3: Uint256) = IERC20.balanceOf(ERC20_3,user1)
@@ -352,28 +370,25 @@ func test_factory{
     assert_eq(removed_amount1.low,asset_amounts[0].low)
     assert_eq(removed_amount2.low,asset_amounts[1].low)
     assert_eq(removed_amount3.low,asset_amounts[2].low)
+    #Check that index token amounts are correct
+    let (local new_index_balance_1: Uint256) = IERC20.balanceOf(ERC20_1,new_index_address)
+    let (local new_index_balance_2: Uint256) = IERC20.balanceOf(ERC20_2,new_index_address)
+    let (local new_index_balance_3: Uint256) = IERC20.balanceOf(ERC20_3,new_index_address)
+    let (added_amount1:Uint256) = uint256_sub(new_index_balance_1,original_index_balance_1)
+    let (added_amount2:Uint256) = uint256_sub(new_index_balance_2,original_index_balance_2)
+    let (added_amount3:Uint256) = uint256_sub(new_index_balance_3,original_index_balance_3)
+    assert_eq(removed_amount1.low,added_amount1.low)
+    assert_eq(removed_amount2.low,added_amount2.low)
+    assert_eq(removed_amount3.low,added_amount3.low)
 
     ###########################################
     #              Stake Tokens
     ###########################################
-
-    local strategy_registry_address
-    %{ ids.strategy_registry_address = context.strategy_registry_address %}
-
-    local ERC4626_strategy_hash
-    %{ ids.ERC4626_strategy_hash = context.ERC4626_strategy_hash %}
-
-    #Arbitrary number that will represent a specific protocol from now onwards
-    local protocol1 = 1
-
-    #Add Strategy to Registry
-    #IStrategy_registry.set_asset_strategy(strategy_registry_address, ERC20_1, wrapped_asset, protocol1)->():
-    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.strategy_registry_address) %}
-        IStrategy_registry.set_protocol_strategy(strategy_registry_address, protocol1, ERC4626_strategy_hash)
-    %{ stop_prank_callable() %}
     
     #Stake Asset
-    #IIndex.stake(_amount, _asset, _protocol)
+    #%{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.new_index_address) %}
+    #    IIndex.stake(new_index_address, new_index_balance_1, ERC20_1, protocol1)
+    #%{ stop_prank_callable() %}
 
     ###########################################
     #            Unstake Tokens

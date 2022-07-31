@@ -18,6 +18,10 @@ end
 func index_hash() -> (hash : felt):
 end
 
+@storage_var
+func strategy_registry() -> (address: felt):
+end
+
 #
 # Constructor
 #
@@ -92,6 +96,10 @@ func create_index{
         _selectors
     )
 
+    #Set strategy_registry address for index
+    let (strategy_registry_address) = strategy_registry.read()
+    IIndex.set_strategy_registry(new_index_address,strategy_registry_address)
+
     #Transfer ownership to sender
     IIndex.transfer_ownership(new_index_address,caller)
 
@@ -120,5 +128,16 @@ func set_index_hash{
     }(_index_hash: felt):
     Ownable.assert_only_owner()
     index_hash.write(_index_hash)
+    return()
+end
+
+@external
+func set_strategy_registry{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(_new_registry: felt):
+    Ownable.assert_only_owner()
+    strategy_registry.write(_new_registry)
     return()
 end

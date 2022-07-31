@@ -34,3 +34,7 @@ end
 @storage_var
 func INDEX_is_initialized() -> (is_initialized: felt):
 end
+
+@storage_var
+func INDEX_strategy_registry() -> (strategy_registry_address: felt):
+end

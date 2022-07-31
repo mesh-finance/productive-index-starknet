@@ -22,4 +22,7 @@ namespace IIndex_factory:
     func set_index_hash(_index_hash: felt):
     end
 
+    func set_strategy_registry(_new_registry: felt):
+    end
+
 end
