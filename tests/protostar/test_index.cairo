@@ -386,9 +386,11 @@ func test_factory{
     ###########################################
     
     #Stake Asset
-    #%{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.new_index_address) %}
-    #    IIndex.stake(new_index_address, new_index_balance_1, ERC20_1, protocol1)
-    #%{ stop_prank_callable() %}
+    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.new_index_address) %}
+        IIndex.stake(new_index_address, new_index_balance_1, ERC20_1, protocol1)
+    %{ stop_prank_callable() %}
+
+    #Check that token balance are as expected
 
     ###########################################
     #            Unstake Tokens

@@ -152,11 +152,12 @@ namespace Index_Core:
         range_check_ptr
         }(_asset: felt):
         alloc_locals
+        
 
         #Check that we haven't reached Max assets
         let (local num: felt) = INDEX_num_assets.read()
         assert_le(num+1,MAX_ASSETS)
-
+        
         #Check that asset isn't already part of the index
         let (is_asset) = _is_asset(_asset, 0, num)
         assert is_asset = FALSE
@@ -166,7 +167,7 @@ namespace Index_Core:
         let (asset_balance) = IERC20.balanceOf(_asset,this_address)
         let (is_balance_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT,0),asset_balance)
         assert is_balance_sufficient = TRUE
-
+        
         #Add asset to index
         INDEX_asset_addresses.write(num,_asset)
         INDEX_num_assets.write(num+1)

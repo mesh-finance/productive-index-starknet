@@ -2,12 +2,12 @@
 
 from starkware.cairo.common.uint256 import (Uint256, uint256_le, uint256_sub, uint256_eq)
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.math_cmp import is_le_felt
+from starkware.cairo.common.math import assert_le_felt
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.bool import TRUE
 from starkware.starknet.common.syscalls import get_contract_address, library_call
 from lib.index_storage import INDEX_num_assets, INDEX_asset_addresses, INDEX_strategy_registry
-from lib.index_core import Index_Core, MIN_ASSET_AMOUNT
+from lib.index_core import Index_Core, MIN_ASSET_AMOUNT, MAX_ASSETS
 from src.openzeppelin.security.safemath import SafeUint256
 from src.openzeppelin.access.ownable import Ownable
 
@@ -57,9 +57,8 @@ func stake{
     let (remaining_amount: Uint256) = SafeUint256.sub_le(trade_amount,_amount)
     let (is_remaining_amount_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT,0),remaining_amount)   
     let (local is_total_amount_staked) = uint256_eq(Uint256(0,0),remaining_amount)
-    let (is_remaining_amount_valid) = is_le_felt(1,is_remaining_amount_sufficient+is_total_amount_staked)
-    assert is_remaining_amount_valid = TRUE
-    assert 88 = 99
+    assert_le_felt(1,is_remaining_amount_sufficient+is_total_amount_staked)
+
     #Get logic from registry
     let (strategy_registry_address) = INDEX_strategy_registry.read()
     let (strategy_class_hash) = IStrategy_registry.get_strategy_hash(strategy_registry_address,_protocol)
@@ -77,12 +76,13 @@ func stake{
         4,
         call_data
     )
-
+    
     #Add/Remove assets from index
     if is_total_amount_staked == TRUE:
+        
         #Remove underlying token from index
         Index_Core._remove_asset(_asset)
-
+        
         #Add wrapped token to index
         Index_Core._add_asset(wrapped)
         
@@ -99,7 +99,6 @@ func stake{
     end
 
     let (wrapped_amount: Uint256) = IERC20.balanceOf(wrapped, this_address)
-
     return(wrapped_amount)
 end
 
@@ -132,8 +131,7 @@ func unstake{
     let (remaining_amount: Uint256) = SafeUint256.sub_le(wrapped_asset_balance,_amount)
     let (is_remaining_amount_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT,0),remaining_amount)   
     let (local is_total_amount_unstaked) = uint256_eq(Uint256(0,0),remaining_amount)
-    let (is_remaining_amount_valid) = is_le_felt(1,is_remaining_amount_sufficient+is_total_amount_unstaked)
-    assert is_remaining_amount_valid = TRUE
+    assert_le_felt(1,is_remaining_amount_sufficient+is_total_amount_unstaked)
 
     #Get logic from registry
     let (strategy_registry_address) = INDEX_strategy_registry.read()
