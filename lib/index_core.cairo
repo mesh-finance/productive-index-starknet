@@ -83,11 +83,11 @@ namespace Index_Core:
         }(address: felt, current_index: felt, num_assets: felt) -> (res: felt):
         alloc_locals
         if current_index == num_assets:
-            return (0)
+            return (FALSE)
         end
         let (asset_address) = INDEX_asset_addresses.read(current_index)
         if asset_address == address:
-            return (1)
+            return (TRUE)
         else:
             return _is_asset(address, current_index + 1, num_assets)
         end
@@ -152,11 +152,10 @@ namespace Index_Core:
         range_check_ptr
         }(_asset: felt):
         alloc_locals
-        
 
         #Check that we haven't reached Max assets
         let (local num: felt) = INDEX_num_assets.read()
-        assert_le(num+1,MAX_ASSETS)
+        assert_le(num,MAX_ASSETS)
         
         #Check that asset isn't already part of the index
         let (is_asset) = _is_asset(_asset, 0, num)
@@ -183,14 +182,16 @@ namespace Index_Core:
         alloc_locals
         
         #Check that we haven't reached 0 assets
-        let (num: felt) = INDEX_num_assets.read()
+        let (local num: felt) = INDEX_num_assets.read()
         local last_asset_index = num-1
+        assert_not_zero(last_asset_index)
 
         #Get asset index (reverts if asset isn't part of index)
-        let (asset_index) = _get_asset_index(num,_token_address)
+        let (local asset_index) = _get_asset_index(num,0,_token_address)
 
         #Remove asset from index
         let (asset_at_last_index) = INDEX_asset_addresses.read(last_asset_index)
+
         #This move is redundant if the removed asset is the last one, but it shouldn't cost extra gas as we're writing to the same storage var twice.
         INDEX_asset_addresses.write(asset_index,asset_at_last_index)
         INDEX_asset_addresses.write(last_asset_index,0)
@@ -203,19 +204,19 @@ namespace Index_Core:
         syscall_ptr : felt*, 
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-        }(_assets_num: felt, _asset: felt) -> (_asset_index: felt):
+        }(_assets_num: felt, _current_index: felt, _asset: felt) -> (_asset_index: felt):
         
-        if _assets_num == 0 :
+        if _assets_num == _current_index :
             #Asset is not part of index
             assert 1 = 2
         end
 
-        let (asset_at_num) = INDEX_asset_addresses.read(_assets_num-1)
+        let (asset_at_num) = INDEX_asset_addresses.read(_current_index)
 
         if asset_at_num == _asset:
-            return(_assets_num)
+            return(_current_index)
         else:
-            let (asset_num) = _get_asset_index(_assets_num-1,_asset)
+            let (asset_num) = _get_asset_index(_assets_num,_current_index+1,_asset)
             return(asset_num)
         end
     end

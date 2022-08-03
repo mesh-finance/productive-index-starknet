@@ -122,13 +122,16 @@ end
 func redeem{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
         shares : Uint256, receiver : felt, owner : felt) -> (assets : Uint256):
     alloc_locals
+
     let (local msg_sender) = get_caller_address()
     ERC4626.ERC20_decrease_allowance_manual(owner, msg_sender, shares)
 
     # Check for rounding error since we round down in previewRedeem.
     let (local assets) = previewRedeem(shares)
+
     let ZERO = Uint256(0, 0)
-    let (assets_is_zero) = uint256_eq(assets, ZERO)
+    let (local assets_is_zero) = uint256_eq(assets, ZERO)
+
     with_attr error_message("ERC4626: cannot redeem 0 assets"):
         assert assets_is_zero = FALSE
     end
@@ -265,6 +268,7 @@ func convertToAssets{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
 
     let (local supply) = ERC20.total_supply()
     let (local all_assets) = totalAssets()
+    
     let ZERO = Uint256(0, 0)
     let (supply_is_zero) = uint256_eq(supply, ZERO)
     if supply_is_zero == TRUE:
@@ -279,8 +283,11 @@ end
 #############################################
 
 @view
-func totalAssets() -> (totalManagedAssets : Uint256):
-    return (Uint256(0, 0))
+func totalAssets{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (totalManagedAssets : Uint256):
+    let (asset) = ERC4626_asset.read()
+    let (this_address) = get_contract_address()
+    let (asset_balance: Uint256) = IERC20.balanceOf(asset,this_address)
+    return (asset_balance)
 end
 
 func _before_withdraw(assets : Uint256, shares : Uint256):

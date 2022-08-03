@@ -43,4 +43,7 @@ namespace IIndex:
 
     func stake(_amount : Uint256, _asset: felt, _protocol: felt)->(wrapped_amount: Uint256):
     end
+
+    func unstake(_amount : Uint256, _wrapped_asset: felt, _protocol: felt)->(underlying_amount: Uint256):
+    end
 end

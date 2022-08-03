@@ -5,7 +5,7 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.uint256 import (Uint256, uint256_sub)
 
-from lib.index_storage import Asset
+from lib.index_storage import Asset, UINT128
 from lib.index_core import MAX_BPS
 from lib.utils import Utils
 
@@ -13,7 +13,6 @@ from src.interfaces.IIndex_factory import IIndex_factory
 from src.interfaces.IStrategy_registry import IStrategy_registry
 from src.interfaces.IIndex import IIndex
 from src.interfaces.IERC20 import IERC20
-
 
 const base = 1000000000000000000 # 1e18
 const stake_selector = 1640128135334360963952617826950674415490722662962339953698475555721960042361
@@ -384,6 +383,13 @@ func test_factory{
     ###########################################
     #              Stake Tokens
     ###########################################
+
+    #Store initial values for later checks
+    let (initial_assets_num) = IIndex.num_assets(new_index_address)
+
+    #Get ERC4626 vault that we will be staking in
+    local yagi_vault_address
+    %{ ids.yagi_vault_address = context.yagi_vault_address %}
     
     #Stake Asset
     %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.new_index_address) %}
@@ -391,13 +397,38 @@ func test_factory{
     %{ stop_prank_callable() %}
 
     #Check that token balance are as expected
+    let (local underlying_token_balance: Uint256) = IERC20.balanceOf(ERC20_1,new_index_address)
+    let (local wrapped_token_balance: Uint256) = IERC20.balanceOf(yagi_vault_address,new_index_address)
+
+    assert_eq(underlying_token_balance.low,0)
+    assert_eq(wrapped_token_balance.low,new_index_balance_1.low)
+
+    #Check that stored index tokens are correct
+    let (new_assets_num) = IIndex.num_assets(new_index_address)
+    assert_eq(new_assets_num,initial_assets_num)
+    let (newly_add_asset : Asset) = IIndex.assets(new_index_address,new_assets_num-1)
+    assert_eq(newly_add_asset.address,yagi_vault_address)
 
     ###########################################
     #            Unstake Tokens
     ###########################################
 
+    # Uint256(UINT128,UINT128) will unstake the total balance, no matter what the value is
+    %{ stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.new_index_address) %}
+        let (local unstaked_amount: Uint256) = IIndex.unstake(new_index_address, Uint256(UINT128,UINT128), yagi_vault_address, protocol1)
+    %{ stop_prank_callable() %}
 
+    #Check that token balance are as expected
+    let (local underlying_token_balance: Uint256) = IERC20.balanceOf(ERC20_1,new_index_address)
+    let (local wrapped_token_balance: Uint256) = IERC20.balanceOf(yagi_vault_address,new_index_address)
+    assert_eq(underlying_token_balance.low,new_index_balance_1.low)
+    assert_eq(wrapped_token_balance.low,0)
 
+    #Check that stored index tokens are correct
+    let (new_assets_num) = IIndex.num_assets(new_index_address)
+    assert_eq(new_assets_num,initial_assets_num)
+    let (newly_add_asset : Asset) = IIndex.assets(new_index_address,new_assets_num-1)
+    assert_eq(newly_add_asset.address,ERC20_1)
 
     return()
 end

@@ -52,9 +52,9 @@ func create_index{
         _assets: felt*,
         _amounts_len: felt, 
         _amounts: felt*,
-        _module_hashes_len: felt, 
-        _module_hashes: felt*, 
-        _selectors_len: felt, 
+        _module_hashes_len: felt,
+        _module_hashes: felt*,
+        _selectors_len: felt,
         _selectors: felt*
     ) -> (new_index_address: felt):
     alloc_locals

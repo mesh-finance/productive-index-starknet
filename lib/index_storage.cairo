@@ -2,6 +2,8 @@
 
 from starkware.cairo.common.uint256 import Uint256
 
+const UINT128 = 2**128 - 1
+
 struct Asset:
     member address: felt
     member balance: Uint256

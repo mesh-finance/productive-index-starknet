@@ -6,7 +6,7 @@ from starkware.cairo.common.math import assert_le_felt
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.bool import TRUE
 from starkware.starknet.common.syscalls import get_contract_address, library_call
-from lib.index_storage import INDEX_num_assets, INDEX_asset_addresses, INDEX_strategy_registry
+from lib.index_storage import INDEX_num_assets, INDEX_asset_addresses, INDEX_strategy_registry, UINT128
 from lib.index_core import Index_Core, MIN_ASSET_AMOUNT, MAX_ASSETS
 from src.openzeppelin.security.safemath import SafeUint256
 from src.openzeppelin.access.ownable import Ownable
@@ -14,10 +14,8 @@ from src.openzeppelin.access.ownable import Ownable
 from src.interfaces.IStrategy_registry import IStrategy_registry
 from src.interfaces.IERC20 import IERC20
 
-#ToDo: generate selectors
 const stake_selector = 1640128135334360963952617826950674415490722662962339953698475555721960042361
 const unstake_selector = 1014598069209108454895257238053232298398249443106650014590517510826791002668
-const MAX_FELT = 637587436573436976973597949534
 
 @external
 func stake{
@@ -30,13 +28,18 @@ func stake{
     #Check that asset is part of index
     let (local num_assets) = INDEX_num_assets.read()
     let (is_asset) = Index_Core._is_asset(_asset, 0, num_assets)
+    with_attr error_message("Strategy Module: Underlying asset is not part of the Index"):
+        assert is_asset = TRUE
+    end
 
     let (local this_address) = get_contract_address()
-    let (is_max_value) = uint256_eq(_amount,Uint256(MAX_FELT,MAX_FELT))
+    let (is_max_value) = uint256_eq(_amount,Uint256(UINT128,UINT128))
 
     local trade_amount: Uint256
 
-    #determine staking amount
+    #Determine staking amount
+    #If _amount is Uint256(UINT128,UINT128), then we unstake everything. 
+    #We do this because it can be difficult to get the exact amount whilst other users are joingin/leaving the pool
     if is_max_value == 1 :
         #Trade entire balance
         let (index_asset_balance) =  IERC20.balanceOf(_asset,this_address)
@@ -99,6 +102,7 @@ func stake{
     end
 
     let (wrapped_amount: Uint256) = IERC20.balanceOf(wrapped, this_address)
+    
     return(wrapped_amount)
 end
 
@@ -113,22 +117,26 @@ func unstake{
     #check that token is part of index
     let (local num_assets) = INDEX_num_assets.read()
     let (is_asset) = Index_Core._is_asset(_wrapped_asset, 0, num_assets)
+    with_attr error_message("Strategy Module: Wrapped asset is not part of the Index"):
+        assert is_asset = TRUE
+    end
 
     let (this_address) = get_contract_address()
     let (wrapped_asset_balance) =  IERC20.balanceOf(_wrapped_asset,this_address)
-    
-    let (is_max_value) = uint256_eq(_amount,Uint256(MAX_FELT,MAX_FELT))
+    let (is_max_value) = uint256_eq(_amount,Uint256(UINT128,UINT128))
+
+    local trade_amount: Uint256
 
     #determine unstaking amount
     if is_max_value == 1 :
-        local trade_amount: Uint256 = wrapped_asset_balance
+        assert trade_amount = wrapped_asset_balance
     else:
-        local trade_amount: Uint256 = _amount
+        assert trade_amount = _amount
     end
 
     #assert that amount left is 0 or larger then MIN_ASSET_AMOUNT
     #ToDo use uint256 that checks for underflow
-    let (remaining_amount: Uint256) = SafeUint256.sub_le(wrapped_asset_balance,_amount)
+    let (remaining_amount: Uint256) = SafeUint256.sub_le(wrapped_asset_balance,trade_amount)
     let (is_remaining_amount_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT,0),remaining_amount)   
     let (local is_total_amount_unstaked) = uint256_eq(Uint256(0,0),remaining_amount)
     assert_le_felt(1,is_remaining_amount_sufficient+is_total_amount_unstaked)
@@ -139,8 +147,8 @@ func unstake{
 
     ##Execute Strategy Logic
     let (call_data: felt*) = alloc()
-    call_data[0] = _amount.low
-    call_data[1] = _amount.high 
+    call_data[0] = trade_amount.low
+    call_data[1] = trade_amount.high 
     call_data[2] = _wrapped_asset
     let (retdata_size : felt, retdata : felt*) = library_call(
         strategy_class_hash,
@@ -149,10 +157,11 @@ func unstake{
         call_data
     )
 
-    let (local underlying: felt, _) = IStrategy_registry.get_underlying_token(strategy_registry_address, _wrapped_asset)
+    let (_,local underlying: felt) = IStrategy_registry.get_underlying_token(strategy_registry_address, _wrapped_asset)
 
     #Add/Remove assets from index
     if is_total_amount_unstaked == TRUE:
+
         #Remove wrapped token from index
         Index_Core._remove_asset(_wrapped_asset)
 
@@ -174,6 +183,9 @@ func unstake{
     let (underlying_amount: Uint256) = IERC20.balanceOf(underlying, this_address)
 
     return(underlying_amount)
+
+
+    
 end
 
 @external

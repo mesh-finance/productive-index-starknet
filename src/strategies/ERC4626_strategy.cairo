@@ -14,7 +14,7 @@ func stake{
         pedersen_ptr : HashBuiltin*, 
         range_check_ptr
     }(_amount : Uint256, _underlying_asset: felt, _wrapped_asset: felt)->(wrapped_amount: Uint256):
-    
+    alloc_locals
     let (this_address) = get_contract_address()    
 
     IERC20.approve(_underlying_asset,_wrapped_asset,_amount)
@@ -29,6 +29,7 @@ func unstake{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }(_amount : Uint256, _wrapped_asset: felt)->(underlying_amount: Uint256):
+    alloc_locals
 
     let (this_address) = get_contract_address()
 
