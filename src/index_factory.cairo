@@ -8,7 +8,20 @@ from starkware.cairo.common.uint256 import Uint256
 from src.openzeppelin.access.ownable import Ownable
 
 from src.interfaces.IIndex import IIndex
+from src.interfaces.IIndex_registry import IIndex_registry
 from src.interfaces.IERC20 import IERC20
+
+#
+# Events
+#
+
+@event
+func Index_Created(id: felt, index_address: felt, creator: felt):
+end
+
+#
+# Storage
+#
 
 @storage_var
 func salt() -> (value : felt):
@@ -20,6 +33,10 @@ end
 
 @storage_var
 func strategy_registry() -> (address: felt):
+end
+
+@storage_var
+func index_registry() -> (address: felt):
 end
 
 #
@@ -76,6 +93,7 @@ func create_index{
         current_salt,
         3,
         calldata,
+        0
     )
 
     #Approve token transfers
@@ -111,7 +129,12 @@ func create_index{
     #increment salt
     salt.write(current_salt + 1)
 
+    #Add newly created index to official registry
+    let (index_registry_address) = index_registry.read()
+    let (index_id) = IIndex_registry.add_index(index_registry_address,new_index_address)
+
     #Emit Event: Index Created
+    Index_Created.emit(id=index_id, index_address=new_index_address, creator=caller)
 
     return(new_index_address) 
 end
@@ -139,5 +162,16 @@ func set_strategy_registry{
     }(_new_registry: felt):
     Ownable.assert_only_owner()
     strategy_registry.write(_new_registry)
+    return()
+end
+
+@external
+func set_index_registry{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
+        range_check_ptr
+    }(_new_registry: felt):
+    Ownable.assert_only_owner()
+    index_registry.write(_new_registry)
     return()
 end

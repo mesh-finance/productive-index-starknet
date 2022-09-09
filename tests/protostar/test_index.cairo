@@ -146,8 +146,25 @@ func __setup__{
         ids.index_factory_address = context.index_factory_address
     %}
 
+
+
+    ###########################################
+    #          Deploy Index Registry
+    ###########################################
+
+    local index_registry_address : felt
+    %{ 
+        context.index_registry_address = deploy_contract("./src/index_registry.cairo", [ids.index_factory_address]).contract_address 
+        ids.index_registry_address = context.index_registry_address
+    %}
+
+    ###########################################
+    #        Configure Index Factory
+    ###########################################
+
     %{stop_prank_callable = start_prank(ids.admin, target_contract_address=ids.index_factory_address)%}
         IIndex_factory.set_index_hash(index_factory_address,index_hash)
+        IIndex_factory.set_index_registry(index_factory_address,index_registry_address)
     %{stop_prank_callable()%}
 
     ###########################################

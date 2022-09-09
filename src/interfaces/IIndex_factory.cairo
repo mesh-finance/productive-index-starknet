@@ -25,4 +25,7 @@ namespace IIndex_factory:
     func set_strategy_registry(_new_registry: felt):
     end
 
+    func set_index_registry(_new_registry: felt):
+    end
+
 end

@@ -1,5 +1,5 @@
 ["protostar.config"]
-protostar_version = "0.2.3"
+protostar_version = "0.3.2"
 
 ["protostar.project"]
 libs_path = "lib"
@@ -23,6 +23,10 @@ ERC4626_strategy = [
 
 strategy_registry = [
     "./src/strategy_registry.cairo",
+]
+
+index_registry = [
+    "./src/index_registry.cairo",
 ]
 
 module_registry = [

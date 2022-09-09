@@ -1,93 +1,95 @@
-# Mesh Finance Index Starknet
+# ToDos:
+    -Modules Registry needs to be finished and integrated. Only official modules should addable via the factory.
+    -As of now the Factory always executes `set_strategy_registry` for every index. However it shouldn't do that if the created index doesn't have the strategy_module.
 
-Cairo contracts for index protocol by Mesh Finance
+# Modules
 
-## Getting started
+On the creation of an index via the index factory, users have the ability to add different features to the index.
+Super conservative indices probably want to avoid protocol risk and therefore don't allow for staking/lending.
+Some might want to allow for rebalancing, some might not (you need to really trust the person who is allowed to make swaps with the index tokens).
+Maybe some indicies want a whitelist for their index.
+etc...
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+The modules/class-hashes/logic selected at the beginning by the user is then available via the index contracts __default__ entry function. 
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+# Index Factory
 
-## Add your files
+A user can mint any given number of indices using the index_factory.cairo contract.
+The Factory handles initilaization of the index. This includes the transfer of tokens, configuration of index modules and adding the index to the official index registry.
 
-- [ ] [Create](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+The interface looks as follows:
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/meshfinance/mesh-finance-index-starknet.git
-git branch -M main
-git push -uf origin main
+    func create_index(
+        _name: felt,
+        _symbol: felt,
+        _assets_len: felt,
+        _assets: felt*,
+        _amounts_len: felt, 
+        _amounts: felt*,
+        _module_hashes_len: felt,
+        _module_hashes: felt*,
+        _selectors_len: felt,
+        _selectors: felt*
+    ) -> (new_index_address: felt):
+```
+    
+    The first few parameters are self explanetory:
+```
+    _name: 		    name of the ERC20 index token
+    _symbol: 		symbol of the ERC20 index token
+    _assets_len: 	Number of assets that will be part of the index
+    _assets:		Addresses of the assets that will be part of the index
+    _amounts_len: 	Number of assets that will be part of the index
+    _amounts: 		Amount of each individual asset that will be sent to the index as part of the initial mint
 ```
 
-## Integrate with your tools
+    The last few parameters allows the user to add aditional functionality to the index.
+    By default the index only allows users to join the index and exit the index. (The index is also an ERC20 by default)
+    But some people might require more functionality such as: Rebalancing, Strategies, Advanced access controll etc...
+    
+```
+    _module_hashes_len: Length of _module_hashes array (equals number of selectors)
+    _module_hashes: 	For each provided _selector, we provide a contract hash that this selector will be attributed to.    
+    _selectors_len:	    Length of _selectors array
+    _selectors:         Selectors that will be callable via a library call
+```
 
-- [ ] [Set up project integrations](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://gitlab.com/meshfinance/mesh-finance-index-starknet/-/settings/integrations)
+### Example:
 
-## Collaborate with your team
+    A user can add the "strategies" functionality (which enables staking/lending) by adding the class hash of ./modules/strategy_module.cairo as well as the selectors "stake" and "unstake":
+    
+```
+    stake_selector = 1640128135334360963952617826950674415490722662962339953698475555721960042361
+    unstake_selector = 1014598069209108454895257238053232298398249443106650014590517510826791002668
+    strategy_module hash = 536554312408700354284283040928046824434969893969739486945260186308733942996
+    
+    Module Hashes Array:
+    [
+        536554312408700354284283040928046824434969893969739486945260186308733942996,536554312408700354284283040928046824434969893969739486945260186308733942996
+    ]
 
-- [ ] [Invite team members and collaborators](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+    Selectors Array:
+    [
+        1640128135334360963952617826950674415490722662962339953698475555721960042361,1014598069209108454895257238053232298398249443106650014590517510826791002668,
+    ]
+    
+```
 
-## Test and Deploy
+# Index Registy
 
-Use the built-in continuous integration in GitLab.
+The registry allows users/builders to identify an index as an official Mesh Finance index.
+Only the factory contract can add indices to the registrty.
 
-- [ ] [Get started with GitLab CI/CD](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+# Strategy Registry 
 
-***
+Although later on we might want to allow people to permissionlessly add strategies, for now they should only be able to select from a selected number of audited strategies.
+Each staking/lending protocol usually has some unique characteristics (at minimum the addresses are different). Therefore seperate strategies for AAVE, Compound, etc... have to be created and made available to the indices. 
+Official strategies can be added to the registry by Mesh Finance. These will then automatically be available for every official index that has the `strategy_module` enabled.
+The strategy registry provides the strategy_module with a bunch of helper functions that enables it to handle a wide variant of staking/lending strategies.
 
-# Editing this README
+# Module Registry
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!).  Thank you to [makeareadme.com](https://gitlab.com/-/experiment/new_project_readme_content:de92c17461650d500ebbab4fda218c6c?https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
-
+Still work in progress.
+The module registry ensures that only official modules (class hashes) are used when minting indices via the factory. Otherwise people could create malicious indicies via the factory.
+Official modules are added to the registry by Mesh Finance
