@@ -34,7 +34,7 @@ The interface looks as follows:
     ) -> (new_index_address: felt):
 ```
     
-    The first few parameters are self explanetory:
+The first few parameters are self explanetory:
 ```
     _name: 		    name of the ERC20 index token
     _symbol: 		symbol of the ERC20 index token
@@ -44,9 +44,9 @@ The interface looks as follows:
     _amounts: 		Amount of each individual asset that will be sent to the index as part of the initial mint
 ```
 
-    The last few parameters allows the user to add aditional functionality to the index.
-    By default the index only allows users to join the index and exit the index. (The index is also an ERC20 by default)
-    But some people might require more functionality such as: Rebalancing, Strategies, Advanced access controll etc...
+The last few parameters allows the user to add aditional functionality to the index.
+By default the index only allows users to join the index and exit the index. (The index is also an ERC20 by default)
+But some people might require more functionality such as: Rebalancing, Strategies, Advanced access controll etc...
     
 ```
     _module_hashes_len: Length of _module_hashes array (equals number of selectors)
@@ -57,7 +57,7 @@ The interface looks as follows:
 
 ### Example:
 
-    A user can add the "strategies" functionality (which enables staking/lending) by adding the class hash of ./modules/strategy_module.cairo as well as the selectors "stake" and "unstake":
+A user can add the "strategies" functionality (which enables staking/lending) by adding the class hash of ./modules/strategy_module.cairo as well as the selectors "stake" and "unstake":
     
 ```
     stake_selector = 1640128135334360963952617826950674415490722662962339953698475555721960042361
