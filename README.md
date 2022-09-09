@@ -1,6 +1,6 @@
 # ToDos:
-    -Modules Registry needs to be finished and integrated. Only official modules should addable via the factory.
-    -As of now the Factory always executes `set_strategy_registry` for every index. However it shouldn't do that if the created index doesn't have the strategy_module.
+- Modules Registry needs to be finished and integrated. Only official modules should addable via the factory.
+- As of now the Factory always executes `set_strategy_registry` for every index. However it shouldn't do that if the created index doesn't have the strategy_module.
 
 # Modules
 
