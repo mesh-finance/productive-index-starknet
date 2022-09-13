@@ -2,283 +2,286 @@
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.starknet.common.syscalls import get_contract_address
-from starkware.cairo.common.math import assert_not_zero, assert_in_range, assert_le, assert_not_equal
+from starkware.cairo.common.math import (
+    assert_not_zero,
+    assert_in_range,
+    assert_le,
+    assert_not_equal,
+)
 from starkware.cairo.common.pow import pow
 from starkware.cairo.common.math_cmp import is_le_felt
 from starkware.cairo.common.bool import TRUE, FALSE
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.uint256 import (
-    Uint256, uint256_add, uint256_sub, uint256_le, uint256_lt, uint256_check, uint256_eq, uint256_mul, uint256_unsigned_div_rem
+    Uint256,
+    uint256_add,
+    uint256_sub,
+    uint256_le,
+    uint256_lt,
+    uint256_check,
+    uint256_eq,
+    uint256_mul,
+    uint256_unsigned_div_rem,
 )
 from src.interfaces.IERC20 import IERC20
-from lib.index_storage import (INDEX_asset_addresses, INDEX_num_assets, INDEX_module_hash)
+from lib.index_storage import INDEX_asset_addresses, INDEX_num_assets, INDEX_module_hash
 from src.openzeppelin.token.erc20.library import ERC20, ERC20_total_supply, ERC20_decimals
 from src.openzeppelin.access.ownable import Ownable
 
-const MAX_ASSETS = 10
-const MIN_ASSET_AMOUNT = 1000000 # 1e6 min token amount to prevent rounding errors
-const MAX_BPS = 10000     ## 100% in basis points
-const MAX_MINT_FEE = 500  ## In BPS, 5%, goes to fee recipient
-const MAX_BURN_FEE = 500  ## In BPS, 5%, goes to fee recipient
+const MAX_ASSETS = 10;
+const MIN_ASSET_AMOUNT = 1000000;  // 1e6 min token amount to prevent rounding errors
+const MAX_BPS = 10000;  // # 100% in basis points
+const MAX_MINT_FEE = 500;  // # In BPS, 5%, goes to fee recipient
+const MAX_BURN_FEE = 500;  // # In BPS, 5%, goes to fee recipient
 
-namespace Index_Core:
-    
-    func _set_modules{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-        }(
-            module_hashes_len: felt, 
-            module_hashes: felt*, 
-            selectors_len: felt, 
-            selectors: felt*
-        ):
+namespace Index_Core {
+    func _set_modules{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+        module_hashes_len: felt, module_hashes: felt*, selectors_len: felt, selectors: felt*
+    ) {
+        if (module_hashes_len == 0) {
+            return ();
+        }
 
-        if module_hashes_len == 0:
-            return()
-        end
+        INDEX_module_hash.write(selectors[0], module_hashes[0]);
 
-        INDEX_module_hash.write(selectors[0],module_hashes[0])
+        _set_modules(module_hashes_len - 1, module_hashes + 1, selectors_len, selectors + 1);
 
-        _set_modules(module_hashes_len-1,module_hashes+1,selectors_len,selectors+1)
+        return ();
+    }
 
-        return()
-    end
+    // TODO:
+    // Change this so that initial mint amount is a parameter and not alway 1
+    func _initial_mint{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+        assets_len: felt, assets: felt*, amounts_len: felt, amounts: felt*
+    ) {
+        alloc_locals;
+        assert assets_len = amounts_len;
+        assert_in_range(assets_len, 2, MAX_ASSETS + 1);  // # Max 10 assets
 
-    #TODO:
-    #Change this so that initial mint amount is a parameter and not alway 1
-    func _initial_mint{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-        }(
-            assets_len: felt, 
-            assets: felt*, 
-            amounts_len: felt, 
-            amounts: felt*
-        ):
-        alloc_locals
-        assert assets_len = amounts_len
-        assert_in_range(assets_len, 2, MAX_ASSETS + 1)    ## Max 10 assets
+        INDEX_num_assets.write(assets_len);
 
-        INDEX_num_assets.write(assets_len)
+        let (local owner) = Ownable.owner();
+        _initiate_assets(0, assets_len, assets);
+        let (amounts_in_uint256: Uint256*) = alloc();
+        let (amounts_in_uint256_end: Uint256*) = _convert_felt_array_to_uint256_array(
+            0, assets_len, amounts, amounts_in_uint256
+        );
+        Index_Core._transfer_assets_from_sender(owner, 0, assets_len, amounts_in_uint256);
 
-        let (local owner) = Ownable.owner()
-        _initiate_assets(0, assets_len, assets)
-        let (amounts_in_uint256: Uint256*) = alloc()
-        let (amounts_in_uint256_end: Uint256*) = _convert_felt_array_to_uint256_array(0, assets_len, amounts, amounts_in_uint256)
-        Index_Core._transfer_assets_from_sender(owner, 0, assets_len, amounts_in_uint256)
+        let (local decimals) = ERC20_decimals.read();
+        let (local unit) = pow(10, decimals);
+        uint256_check(Uint256(1 * unit, 0));
+        ERC20._mint(owner, Uint256(1 * unit, 0));
+        return ();
+    }
 
-        let (local decimals) = ERC20_decimals.read()
-        let (local unit) = pow(10, decimals)
-        uint256_check(Uint256(1 * unit, 0))
-        ERC20._mint(owner, Uint256(1 * unit, 0))
-        return ()
-    end
-
-    func _is_asset{
-            syscall_ptr : felt*, 
-            pedersen_ptr : HashBuiltin*,
-            range_check_ptr
-        }(address: felt, current_index: felt, num_assets: felt) -> (res: felt):
-        alloc_locals
-        if current_index == num_assets:
-            return (FALSE)
-        end
-        let (asset_address) = INDEX_asset_addresses.read(current_index)
-        if asset_address == address:
-            return (TRUE)
-        else:
-            return _is_asset(address, current_index + 1, num_assets)
-        end
-    end
+    func _is_asset{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+        address: felt, current_index: felt, num_assets: felt
+    ) -> (res: felt) {
+        alloc_locals;
+        if (current_index == num_assets) {
+            return (FALSE,);
+        }
+        let (asset_address) = INDEX_asset_addresses.read(current_index);
+        if (asset_address == address) {
+            return (TRUE,);
+        } else {
+            return _is_asset(address, current_index + 1, num_assets);
+        }
+    }
 
     func _transfer_assets_from_sender{
-            syscall_ptr : felt*, 
-            pedersen_ptr : HashBuiltin*,
-            range_check_ptr
-        }(sender: felt, current_index: felt, num_assets: felt, amounts: Uint256*):
-        alloc_locals
-        if current_index == num_assets:
-            return ()
-        end
-        let (self_address) = get_contract_address()
-        let (asset_address) = INDEX_asset_addresses.read(current_index)
-        IERC20.transferFrom(contract_address=asset_address, sender=sender, recipient=self_address, amount=[amounts])
-        _transfer_assets_from_sender(sender, current_index + 1, num_assets, amounts + Uint256.SIZE)
-        return ()
-    end
+        syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
+    }(sender: felt, current_index: felt, num_assets: felt, amounts: Uint256*) {
+        alloc_locals;
+        if (current_index == num_assets) {
+            return ();
+        }
+        let (self_address) = get_contract_address();
+        let (asset_address) = INDEX_asset_addresses.read(current_index);
+        IERC20.transferFrom(
+            contract_address=asset_address, sender=sender, recipient=self_address, amount=[amounts]
+        );
+        _transfer_assets_from_sender(sender, current_index + 1, num_assets, amounts + Uint256.SIZE);
+        return ();
+    }
 
     func _transfer_assets_to_sender{
-            syscall_ptr : felt*, 
-            pedersen_ptr : HashBuiltin*,
-            range_check_ptr
-        }(sender: felt, current_index: felt, num_assets: felt, amount_to_burn: Uint256, total_supply: Uint256):
-        alloc_locals
-        if current_index == num_assets:
-            return ()
-        end
-        let (asset_address) = INDEX_asset_addresses.read(current_index)
-        let (self_address) = get_contract_address()
-        let (current_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
-        let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(current_balance, amount_to_burn)
-        let (is_equal_to_zero) =  uint256_eq(mul_high, Uint256(0, 0))
-        assert is_equal_to_zero = 1
-        let (local amount_to_transfer: Uint256, _) = uint256_unsigned_div_rem(mul_low, total_supply)
-        let (final_balance: Uint256) = uint256_sub(current_balance, amount_to_transfer)
-        IERC20.transfer(contract_address=asset_address, recipient=sender, amount=amount_to_transfer)
-        _transfer_assets_to_sender(sender, current_index + 1, num_assets, amount_to_burn, total_supply)
-        return ()
-    end
+        syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
+    }(
+        sender: felt,
+        current_index: felt,
+        num_assets: felt,
+        amount_to_burn: Uint256,
+        total_supply: Uint256,
+    ) {
+        alloc_locals;
+        if (current_index == num_assets) {
+            return ();
+        }
+        let (asset_address) = INDEX_asset_addresses.read(current_index);
+        let (self_address) = get_contract_address();
+        let (current_balance: Uint256) = IERC20.balanceOf(
+            contract_address=asset_address, account=self_address
+        );
+        let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(current_balance, amount_to_burn);
+        let (is_equal_to_zero) = uint256_eq(mul_high, Uint256(0, 0));
+        assert is_equal_to_zero = 1;
+        let (local amount_to_transfer: Uint256, _) = uint256_unsigned_div_rem(
+            mul_low, total_supply
+        );
+        let (final_balance: Uint256) = uint256_sub(current_balance, amount_to_transfer);
+        IERC20.transfer(
+            contract_address=asset_address, recipient=sender, amount=amount_to_transfer
+        );
+        _transfer_assets_to_sender(
+            sender, current_index + 1, num_assets, amount_to_burn, total_supply
+        );
+        return ();
+    }
 
-    func _get_amounts_to_mint{
-            syscall_ptr : felt*, 
-            pedersen_ptr : HashBuiltin*,
-            range_check_ptr
-        }(amount_out: Uint256) -> (amounts: Uint256*):
-        alloc_locals
-        uint256_check(amount_out)
-        let (local _total_supply: Uint256) = ERC20_total_supply.read()
-        let (local num_assets) = INDEX_num_assets.read()
-        let (local amounts_start : Uint256*) = alloc()
+    func _get_amounts_to_mint{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+        amount_out: Uint256
+    ) -> (amounts: Uint256*) {
+        alloc_locals;
+        uint256_check(amount_out);
+        let (local _total_supply: Uint256) = ERC20_total_supply.read();
+        let (local num_assets) = INDEX_num_assets.read();
+        let (local amounts_start: Uint256*) = alloc();
 
-        let (amounts_end: Uint256*) = _build_amounts_to_mint(amount_out, _total_supply, num_assets, 0, amounts_start)
-        return (amounts_start)
-    end
+        let (amounts_end: Uint256*) = _build_amounts_to_mint(
+            amount_out, _total_supply, num_assets, 0, amounts_start
+        );
+        return (amounts_start,);
+    }
 
-    func _add_asset{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-        }(_asset: felt):
-        alloc_locals
+    func _add_asset{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(_asset: felt) {
+        alloc_locals;
 
-        #Check that we haven't reached Max assets
-        let (local num: felt) = INDEX_num_assets.read()
-        assert_le(num,MAX_ASSETS)
-        
-        #Check that asset isn't already part of the index
-        let (is_asset) = _is_asset(_asset, 0, num)
-        assert is_asset = FALSE
+        // Check that we haven't reached Max assets
+        let (local num: felt) = INDEX_num_assets.read();
+        assert_le(num, MAX_ASSETS);
 
-        #Balance of added asset should be larger then MIN_ASSET_AMOUNT
-        let (this_address) = get_contract_address()
-        let (asset_balance) = IERC20.balanceOf(_asset,this_address)
-        let (is_balance_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT,0),asset_balance)
-        assert is_balance_sufficient = TRUE
-        
-        #Add asset to index
-        INDEX_asset_addresses.write(num,_asset)
-        INDEX_num_assets.write(num+1)
+        // Check that asset isn't already part of the index
+        let (is_asset) = _is_asset(_asset, 0, num);
+        assert is_asset = FALSE;
 
-        return()
-    end
+        // Balance of added asset should be larger then MIN_ASSET_AMOUNT
+        let (this_address) = get_contract_address();
+        let (asset_balance) = IERC20.balanceOf(_asset, this_address);
+        let (is_balance_sufficient) = uint256_le(Uint256(MIN_ASSET_AMOUNT, 0), asset_balance);
+        assert is_balance_sufficient = TRUE;
 
-    func _remove_asset{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-        }(_token_address: felt):
-        alloc_locals
-        
-        #Check that we haven't reached 0 assets
-        let (local num: felt) = INDEX_num_assets.read()
-        local last_asset_index = num-1
-        assert_not_zero(last_asset_index)
+        // Add asset to index
+        INDEX_asset_addresses.write(num, _asset);
+        INDEX_num_assets.write(num + 1);
 
-        #Get asset index (reverts if asset isn't part of index)
-        let (local asset_index) = _get_asset_index(num,0,_token_address)
+        return ();
+    }
 
-        #Remove asset from index
-        let (asset_at_last_index) = INDEX_asset_addresses.read(last_asset_index)
+    func _remove_asset{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+        _token_address: felt
+    ) {
+        alloc_locals;
 
-        #This move is redundant if the removed asset is the last one, but it shouldn't cost extra gas as we're writing to the same storage var twice.
-        INDEX_asset_addresses.write(asset_index,asset_at_last_index)
-        INDEX_asset_addresses.write(last_asset_index,0)
-        INDEX_num_assets.write(last_asset_index)
+        // Check that we haven't reached 0 assets
+        let (local num: felt) = INDEX_num_assets.read();
+        local last_asset_index = num - 1;
+        assert_not_zero(last_asset_index);
 
-        return()
-    end
+        // Get asset index (reverts if asset isn't part of index)
+        let (local asset_index) = _get_asset_index(num, 0, _token_address);
 
-    func _get_asset_index{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-        }(_assets_num: felt, _current_index: felt, _asset: felt) -> (_asset_index: felt):
-        
-        if _assets_num == _current_index :
-            #Asset is not part of index
-            assert 1 = 2
-        end
+        // Remove asset from index
+        let (asset_at_last_index) = INDEX_asset_addresses.read(last_asset_index);
 
-        let (asset_at_num) = INDEX_asset_addresses.read(_current_index)
+        // This move is redundant if the removed asset is the last one, but it shouldn't cost extra gas as we're writing to the same storage var twice.
+        INDEX_asset_addresses.write(asset_index, asset_at_last_index);
+        INDEX_asset_addresses.write(last_asset_index, 0);
+        INDEX_num_assets.write(last_asset_index);
 
-        if asset_at_num == _asset:
-            return(_current_index)
-        else:
-            let (asset_num) = _get_asset_index(_assets_num,_current_index+1,_asset)
-            return(asset_num)
-        end
-    end
+        return ();
+    }
 
-end
+    func _get_asset_index{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+        _assets_num: felt, _current_index: felt, _asset: felt
+    ) -> (_asset_index: felt) {
+        if (_assets_num == _current_index) {
+            // Asset is not part of index
+            assert 1 = 2;
+        }
 
-#
-# Internals
-# 
+        let (asset_at_num) = INDEX_asset_addresses.read(_current_index);
 
-func _build_amounts_to_mint{
-    syscall_ptr : felt*, 
-    pedersen_ptr : HashBuiltin*,
-    range_check_ptr
-}(amount_out: Uint256, total_supply: Uint256, num_assets: felt, current_index: felt, amounts: Uint256*) -> (amounts: Uint256*):
-    alloc_locals
-    if current_index == num_assets:
-        return (amounts)
-    end
-    
-    let (asset_address) = INDEX_asset_addresses.read(current_index)
-    let (self_address) = get_contract_address()
-    let (asset_balance: Uint256) = IERC20.balanceOf(contract_address=asset_address, account=self_address)
+        if (asset_at_num == _asset) {
+            return (_current_index,);
+        } else {
+            let (asset_num) = _get_asset_index(_assets_num, _current_index + 1, _asset);
+            return (asset_num,);
+        }
+    }
+}
 
-    let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(asset_balance, amount_out)
+//
+// Internals
+//
 
-    let (is_equal_to_zero) =  uint256_eq(mul_high, Uint256(0, 0))
-    assert is_equal_to_zero = 1
+func _build_amounts_to_mint{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    amount_out: Uint256,
+    total_supply: Uint256,
+    num_assets: felt,
+    current_index: felt,
+    amounts: Uint256*,
+) -> (amounts: Uint256*) {
+    alloc_locals;
+    if (current_index == num_assets) {
+        return (amounts,);
+    }
 
-    let (local amount_in: Uint256, _) = uint256_unsigned_div_rem(mul_low, total_supply)
+    let (asset_address) = INDEX_asset_addresses.read(current_index);
+    let (self_address) = get_contract_address();
+    let (asset_balance: Uint256) = IERC20.balanceOf(
+        contract_address=asset_address, account=self_address
+    );
 
-    assert [amounts] = amount_in
+    let (mul_low: Uint256, mul_high: Uint256) = uint256_mul(asset_balance, amount_out);
 
-    return _build_amounts_to_mint(amount_out, total_supply, num_assets, current_index + 1, amounts + Uint256.SIZE)
-end
+    let (is_equal_to_zero) = uint256_eq(mul_high, Uint256(0, 0));
+    assert is_equal_to_zero = 1;
 
-func _initiate_assets{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(current_index: felt, num_assets: felt, assets: felt*):
-    alloc_locals
-    if current_index == num_assets:
-        return ()
-    end
-    INDEX_asset_addresses.write(current_index, [assets])
-    _initiate_assets(current_index + 1, num_assets, assets + 1)
-    return ()
-end
+    let (local amount_in: Uint256, _) = uint256_unsigned_div_rem(mul_low, total_supply);
+
+    assert [amounts] = amount_in;
+
+    return _build_amounts_to_mint(
+        amount_out, total_supply, num_assets, current_index + 1, amounts + Uint256.SIZE
+    );
+}
+
+func _initiate_assets{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    current_index: felt, num_assets: felt, assets: felt*
+) {
+    alloc_locals;
+    if (current_index == num_assets) {
+        return ();
+    }
+    INDEX_asset_addresses.write(current_index, [assets]);
+    _initiate_assets(current_index + 1, num_assets, assets + 1);
+    return ();
+}
 
 func _convert_felt_array_to_uint256_array{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(current_index: felt, num_assets: felt, amounts: felt*, amounts_in_uint256: Uint256*) -> (amounts_in_uint256: Uint256*):
-    alloc_locals
-    if current_index == num_assets:
-        return (amounts_in_uint256)
-    end
-    assert [amounts_in_uint256] = Uint256([amounts], 0)
-    
-    return _convert_felt_array_to_uint256_array(current_index + 1, num_assets, amounts + 1, amounts_in_uint256 + Uint256.SIZE)
-end
-        
-    
+    syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
+}(current_index: felt, num_assets: felt, amounts: felt*, amounts_in_uint256: Uint256*) -> (
+    amounts_in_uint256: Uint256*
+) {
+    alloc_locals;
+    if (current_index == num_assets) {
+        return (amounts_in_uint256,);
+    }
+    assert [amounts_in_uint256] = Uint256([amounts], 0);
+
+    return _convert_felt_array_to_uint256_array(
+        current_index + 1, num_assets, amounts + 1, amounts_in_uint256 + Uint256.SIZE
+    );
+}
